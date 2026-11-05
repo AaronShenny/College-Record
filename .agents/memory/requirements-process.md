@@ -159,6 +159,12 @@ Allow students to edit imported source code directly in the program edit/preview
 
 **How to apply:** Edits and confirmed file replacement affect the app-managed saved copy, not original source files. Preserve the existing program and its other content when replacing a file. Do not treat the superseded read-only choice as a requirement, reintroduce code execution, or change the skip-duplicates bulk-import rule.
 
+When source code is edited or replaced, warn that existing output may be outdated without blocking document generation.
+
+**Why:** The user selected “Show warning without blocking.”
+
+**How to apply:** Preserve existing screenshots and output text; do not require output-review confirmation before generation. This warning does not waive the separate rule that missing required content blocks generation. The app does not verify code/output correctness.
+
 First-version document outputs include a Word file per program, a combined subject Word record, and PDF export.
 
 **Why:** The user selected all three output options.
