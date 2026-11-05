@@ -127,7 +127,13 @@ Students can connect a single folder containing all program files for a subject,
 
 **Why:** The user explicitly described these alternatives and retained manual file assignment.
 
-**How to apply:** Do not require folder-based entry when a student prefers pasted code, or treat suggested matches as final assignments. Whether the connected folder is local or in Drive and how external edits are handled still need clarification.
+**How to apply:** Do not require folder-based entry when a student prefers pasted code, or treat suggested matches as final assignments. How external edits are handled still needs clarification.
+
+Source folders may be on the Windows computer or in Google Drive. Save code, Word documents, configuration, and other app data in a separate app folder in each student's own Drive.
+
+**Why:** The user specified “support either location” and “saving both code and word and configuration etc in a separate app's folder in the students' own drive.”
+
+**How to apply:** Distinguish connected source folders from the app-managed Drive folder. Do not assume permission to modify source files or overwrite app-managed code when external source files change; clarify that behavior.
 
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
