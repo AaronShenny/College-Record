@@ -37,7 +37,13 @@ College Record Maker/
 - Credentials never belong in synced metadata or Drive documents; use secure Windows credential storage.
 - Keep account-separated local working files and a pending sync queue. Save locally first, distinguish local and Drive status, and upload referenced assets before metadata that publishes their references. Recover interrupted multi-file sync rather than assume Drive has group transactions.
 
-Still unresolved: PDF and older-template retention, automatic Trash expiry, conflict granularity, trusted save timestamps, and equal-time handling. The previously confirmed latest-save-wins rule is not latest-upload-wins.
+Handle conflicts independently per program and separately for subject settings. Each winning program version includes its fields, source-file references, and ordered output items as a consistent unit; do not merge fields from competing versions. Edits to different programs can both survive synchronization. Generated Word versions remain separate additions.
+
+**Why:** The user selected “Separate programs and subject settings” after reviewing this conflict-granularity proposal.
+
+**How to apply:** Apply most-recently-saved-wins within each saved item, not to an entire subject because one program changed. Do not substitute most-recently-uploaded-wins.
+
+Still unresolved: PDF and older-template retention, automatic Trash expiry, trusted save timestamps, equal-time handling, deletion-versus-edit conflicts, and retention of overwritten conflict versions.
 
 **Why:** These items were expressly left open in the accepted proposal; approving the structure did not resolve them.
 
