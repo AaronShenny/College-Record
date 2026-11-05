@@ -21,6 +21,12 @@ Each student's records should be stored in that student's own Google Drive.
 
 **How to apply:** Treat per-student Drive ownership as confirmed. Do not assume a central college repository or shared-template service.
 
+The app should format student-provided content.
+
+**Why:** The user selected “Format student-provided content” rather than AI generation or both approaches.
+
+**How to apply:** Scope the record-making workflow around content students supply. Do not carry the legacy scripts' AI generation into the requirements without a new request.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
