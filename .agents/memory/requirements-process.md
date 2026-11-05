@@ -117,6 +117,12 @@ Support both manual program entry and bulk import of questions from CSV and sour
 
 **How to apply:** Include both entry paths in the SRS. CSV columns, source-file matching rules, and duplicate handling remain open requirements.
 
+CSV imports must allow students to map columns to fields rather than require fixed column names.
+
+**Why:** The user selected “Map CSV columns.”
+
+**How to apply:** Keep CSV-to-field mapping distinct from field-to-Word-variable mapping. Source-file matching and duplicate handling still need discussion.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
