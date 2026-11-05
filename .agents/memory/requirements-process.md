@@ -123,6 +123,12 @@ CSV imports must allow students to map columns to fields rather than require fix
 
 **How to apply:** Keep CSV-to-field mapping distinct from field-to-Word-variable mapping. Source-file matching and duplicate handling still need discussion.
 
+Students can connect a single folder containing all program files for a subject, or copy and paste code. File matching uses automatic suggestions followed by student review, with manual assignment available for every file.
+
+**Why:** The user explicitly described these alternatives and retained manual file assignment.
+
+**How to apply:** Do not require folder-based entry when a student prefers pasted code, or treat suggested matches as final assignments. Whether the connected folder is local or in Drive and how external edits are handled still need clarification.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
