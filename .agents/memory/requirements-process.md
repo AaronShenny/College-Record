@@ -201,6 +201,12 @@ Save a new version whenever a Word document is regenerated, retaining the previo
 
 **How to apply:** Do not silently replace previous generated documents. Keep generated-document versioning separate from latest-save-wins conflict resolution for app data. Edits in Word do not automatically update the app's mapped content.
 
+Support autosave and a Save Now action, including saving unfinished records.
+
+**Why:** The user selected “Autosave and Save Now” after local-first saving and later Drive sync were described.
+
+**How to apply:** Save progress locally and sync when connected; show local-save, syncing, and Drive-save states distinctly. Missing required fields block generation, not saving progress.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
