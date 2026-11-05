@@ -51,6 +51,12 @@ Students can choose per experiment whether captured output is inserted as editab
 
 **How to apply:** Preserve this choice at experiment level rather than enforcing one output format for an entire subject.
 
+Students upload a Word template containing variables such as `[NO]`, and the app provides an option to map those variables.
+
+**Why:** The user explicitly requested uploaded templates with variable mapping and further discussion of this feature.
+
+**How to apply:** Treat template upload and user-controlled variable mapping as confirmed. Detection rules, available fields, custom fields, formatting, and mapping reuse remain to be discussed; do not assume mappings solely from placeholder names.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
