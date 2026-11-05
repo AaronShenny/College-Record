@@ -87,6 +87,12 @@ Support template variables in body paragraphs, tables, headers, and footers.
 
 **How to apply:** Include these four locations in the SRS. Text boxes and shapes are not part of the confirmed first-version scope.
 
+Support both fit-to-available-width image insertion and template-defined image areas.
+
+**Why:** The user selected “Support both” for template-controlled image sizing.
+
+**How to apply:** Keep image proportions without cropping or stretching. Allow ordinary image variables to fit available width and designated template areas for precise sizing. Tall-image overflow behavior and the exact image-area mapping mechanism remain open.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
