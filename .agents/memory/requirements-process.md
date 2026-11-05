@@ -313,4 +313,4 @@ Discuss the desktop application's features first and eventually create an SRS do
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
 
-**How to apply:** Stay in requirements discussion and SRS preparation until the user asks to proceed with implementation. Previously suggested technologies and features are proposals, not approved requirements.
+**How to apply:** The user subsequently authorized SRS-based screens only. Visual mockups with sample data are allowed; a working desktop application, live Drive integration, authentication, execution, and document generation still require separate approval. Previously suggested technologies and features are proposals, not approved requirements.
