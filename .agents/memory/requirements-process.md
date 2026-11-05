@@ -117,6 +117,12 @@ CSV imports must allow students to map columns to fields rather than require fix
 
 **How to apply:** Keep CSV-to-field mapping distinct from field-to-Word-variable mapping. Source-file matching and duplicate handling still need discussion.
 
+Skip existing program numbers when an import would create duplicate programs or update existing program content.
+
+**Why:** The user selected “Skip existing program numbers” rather than reviewing conflicting updates.
+
+**How to apply:** Do not overwrite existing program content through duplicate imports. Explain which entries were skipped; normal editing and explicit source-file assignment remain distinct from duplicate program imports.
+
 Students can connect a single folder containing all program files for a subject, or copy and paste code. File matching uses automatic suggestions followed by student review, with manual assignment available for every file.
 
 **Why:** The user explicitly described these alternatives and retained manual file assignment.
