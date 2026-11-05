@@ -63,6 +63,12 @@ Template mappings must support both built-in and student-created custom fields.
 
 **How to apply:** Do not restrict mapping targets to a fixed built-in list. Custom field types and value scopes still need discussion.
 
+First-version custom fields support text and images.
+
+**Why:** The user selected “Text and images” rather than text only or text, images, and tables.
+
+**How to apply:** Include multiline text and image-valued custom fields in requirements discussions. Do not assume editable table-valued custom fields are required.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
