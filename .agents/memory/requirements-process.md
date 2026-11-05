@@ -253,7 +253,13 @@ Support multiple saved output captures per program, with students selecting whic
 
 **Why:** The user selected “Multiple captures per program” after multiple test runs and text-or-image capture choices were described.
 
-**How to apply:** Do not overwrite earlier captures on each run. Allow text-or-image representation per capture. How multiple captures fill the Word template remains to be decided.
+**How to apply:** Do not overwrite earlier captures on each run. Allow text-or-image representation per capture.
+
+Use one output variable to insert a program's selected captures sequentially.
+
+**Why:** The user selected “One output variable” rather than separate output variables or both methods.
+
+**How to apply:** A variable such as `[OUTPUT]` receives the selected captures one after another, accommodating different capture counts per program. Keep this distinct from the confirmed separate mappings for source files.
 
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
