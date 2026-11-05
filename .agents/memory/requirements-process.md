@@ -189,6 +189,12 @@ PDF export must use installed Microsoft Word, not LibreOffice.
 
 **How to apply:** Specify installed Windows desktop Microsoft Word as the PDF conversion prerequisite. Detect its availability and explain when PDF export is unavailable. Do not add LibreOffice fallback or make Word a prerequisite for ordinary record-data editing or DOCX generation. In-app preview behavior remains unconfirmed.
 
+Preview formatted records by opening generated documents in Microsoft Word, not with an in-app document preview.
+
+**Why:** The user selected “Open in Microsoft Word.”
+
+**How to apply:** Include an open-in-Word workflow for generated records. Do not add embedded document rendering or an in-app Word editor to the first-version scope. Handling edits made in Word remains open.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
