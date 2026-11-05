@@ -1,0 +1,1 @@
+- [Product scope and requirements process](requirements-process.md) — Windows record maker with Drive storage; discuss features and write an SRS before building.
