@@ -231,6 +231,12 @@ One program can contain multiple source files.
 
 **How to apply:** Include grouped source files per program in the SRS. Entry-point selection, language-specific execution, source-file order, and which files appear in Word still need discussion.
 
+Students can select and order which source files appear in the Word record, independently of the files required for execution.
+
+**Why:** The user selected “Let students select files” after selection, within-program ordering, and filename identification were described.
+
+**How to apply:** Preserve numeric program order while allowing source-file selection and ordering within each program. Identify included files by filename. The template insertion mechanism remains open.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
