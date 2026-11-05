@@ -99,6 +99,12 @@ Block document generation when required content is missing.
 
 **How to apply:** Validate required mappings and values before generating documents and identify affected experiments. This does not prohibit saving incomplete work; saving behavior remains a separate requirement.
 
+Reuse the same mapping for the same template across different programs in a subject's record.
+
+**Why:** The user clarified: “for a subject's record, the template and mapping would be same across different programs.”
+
+**How to apply:** Configure the subject record's template and mapping once and apply them to its programs, using each program's own values. Reuse across separate records or semesters has not been confirmed.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
