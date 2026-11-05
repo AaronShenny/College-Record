@@ -85,7 +85,13 @@ Support both fit-to-available-width image insertion and template-defined image a
 
 **Why:** The user selected “Support both” for template-controlled image sizing.
 
-**How to apply:** Keep image proportions without cropping or stretching. Allow ordinary image variables to fit available width and designated template areas for precise sizing. Tall-image overflow behavior and the exact image-area mapping mechanism remain open.
+**How to apply:** Keep image proportions without cropping or stretching. Allow ordinary image variables to fit available width and designated template areas for precise sizing. The exact image-area mapping mechanism remains open.
+
+Shrink tall screenshots to fit on one page rather than splitting them across pages.
+
+**Why:** The user selected “Shrink to fit one page” after the potential readability reduction was explained.
+
+**How to apply:** Preserve the entire screenshot and its aspect ratio while fitting the available printable area or template-defined image area. Do not split or crop tall screenshots automatically.
 
 Block document generation when required content is missing.
 
