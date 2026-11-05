@@ -169,7 +169,13 @@ Support working offline and syncing to Drive later.
 
 **Why:** The user selected “Work offline, sync later.”
 
-**How to apply:** Previously downloaded records can be edited offline, code can run with local tools, and documents can be generated when required resources are cached. Queue local changes for upload after reconnection and show unsynced status. First sign-in and uncached Drive content require connectivity. Conflict resolution remains open.
+**How to apply:** Previously downloaded records can be edited offline, code can run with local tools, and documents can be generated when required resources are cached. Queue local changes for upload after reconnection and show unsynced status. First sign-in and uncached Drive content require connectivity.
+
+Resolve conflicting saved changes using the most recently saved version.
+
+**Why:** The user selected “Use most recently saved version” after the risk of overwriting the other changes was explained.
+
+**How to apply:** Specify latest-save-wins conflict resolution rather than mandatory manual comparison. The definition of save time across offline devices and any recovery/history policy still need to be specified; do not assume latest upload means latest save.
 
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
