@@ -177,6 +177,12 @@ Resolve conflicting saved changes using the most recently saved version.
 
 **How to apply:** Specify latest-save-wins conflict resolution rather than mandatory manual comparison. The definition of save time across offline devices and any recovery/history policy still need to be specified; do not assume latest upload means latest save.
 
+Detect installed language tools and guide students through installing missing prerequisites; do not automatically install them.
+
+**Why:** The user selected “Detect tools and guide installation.”
+
+**How to apply:** Check Python, a Java JDK, and a C compiler independently. Explain missing prerequisites without blocking record editing or formatting. Do not include automatic tool downloads/setup as an approved feature.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
