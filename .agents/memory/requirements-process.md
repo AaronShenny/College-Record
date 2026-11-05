@@ -81,6 +81,12 @@ Use template formatting only; do not provide field-level formatting overrides in
 
 **How to apply:** Preserve the Word template's formatting when inserting mapped content. Do not carry proposed font/size override controls into the SRS. Image sizing and placeholder placement rules remain open.
 
+Support template variables in body paragraphs, tables, headers, and footers.
+
+**Why:** The user selected “Include headers and footers” rather than body/tables only or also including text boxes.
+
+**How to apply:** Include these four locations in the SRS. Text boxes and shapes are not part of the confirmed first-version scope.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
