@@ -219,6 +219,12 @@ The allowed college Google-account email domain is `rajagiri.edu`.
 
 **How to apply:** Use exactly this domain in the SRS access requirement; additional domains and subdomains have not been approved.
 
+Organize subject records using `semester-XX/subject-name` under the student's app folder.
+
+**Why:** The user specified “semester-XX/subject-name” when asked about record organization.
+
+**How to apply:** Preserve semester-to-subject hierarchy in the SRS and Drive organization. Each subject record retains its one template and mappings.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
