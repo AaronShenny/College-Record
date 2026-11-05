@@ -313,10 +313,16 @@ Discuss the desktop application's features first and eventually create an SRS do
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
 
-**How to apply:** The user subsequently authorized SRS-based screens only. Visual mockups with sample data are allowed; a working desktop application, live Drive integration, authentication, execution, and document generation still require separate approval. Previously suggested technologies and features are proposals, not approved requirements.
+**How to apply:** The user subsequently authorized SRS-based screens only. Visual mockups with sample data are allowed; a working desktop application, live Drive integration, authentication, execution, and document generation still require separate approval. The Electron + React + Python stack is now confirmed; other unapproved suggestions remain proposals.
 
 Use the user's supplied `pdf_to_qns` script as the baseline for the future PDF question extractor.
 
 **Why:** The user explicitly designated the attached script: “this is the script we r gonna use to extract qns from the pdf.”
 
 **How to apply:** Adapt this extractor when PDF import implementation is approved rather than substituting an AI service or unrelated extraction approach. This choice does not authorize wiring extraction into the screens-only mockups. Preserve student review before creating programs.
+
+Use Electron + React + Python for the Windows desktop application.
+
+**Why:** The user explicitly chose “lets go with electron + react + python” during the technology discussion.
+
+**How to apply:** Treat this stack as confirmed for architecture discussion and future implementation. Stack selection alone does not authorize starting application development.
