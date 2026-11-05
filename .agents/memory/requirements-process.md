@@ -105,6 +105,12 @@ Reuse the same mapping for the same template across different programs in a subj
 
 **How to apply:** Configure the subject record's template and mapping once and apply them to its programs, using each program's own values. Reuse across separate records or semesters has not been confirmed.
 
+Use one template per subject record.
+
+**Why:** The user selected “One template per subject record,” not different templates per program.
+
+**How to apply:** All programs within a subject record use its single template and mapping. Do not introduce per-program template selection.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
