@@ -57,6 +57,12 @@ Students upload a Word template containing variables such as `[NO]`, and the app
 
 **How to apply:** Treat template upload and user-controlled variable mapping as confirmed. Detection rules, available fields, custom fields, formatting, and mapping reuse remain to be discussed; do not assume mappings solely from placeholder names.
 
+Template mappings must support both built-in and student-created custom fields.
+
+**Why:** The user selected “Built-in and custom fields.”
+
+**How to apply:** Do not restrict mapping targets to a fixed built-in list. Custom field types and value scopes still need discussion.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
