@@ -165,6 +165,12 @@ Students can generate documents for one program, selected programs, or the entir
 
 **How to apply:** Preserve numeric ordering and new-page boundaries for selected programs. Required-content validation applies to included programs; incomplete programs outside the selection do not block generation.
 
+Support working offline and syncing to Drive later.
+
+**Why:** The user selected “Work offline, sync later.”
+
+**How to apply:** Previously downloaded records can be edited offline, code can run with local tools, and documents can be generated when required resources are cached. Queue local changes for upload after reconnection and show unsynced status. First sign-in and uncached Drive content require connectivity. Conflict resolution remains open.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
