@@ -127,7 +127,13 @@ The template-setup workflow must offer importing program numbers and titles from
 
 **Why:** The user approved the mapping workflow and added “upload the no, titles [extract it from the pdf or csv[map]], select the source code folder [optional].”
 
-**How to apply:** For CSV, map columns to the relevant fields; for PDF, extract program numbers and titles. Do not require a source folder to create programs or configure the subject. PDF extraction review, scanned-document support, and the distinction between a title and full question still need clarification.
+**How to apply:** For CSV, map columns to the relevant fields; for PDF, extract program numbers and titles. Do not require a source folder to create programs or configure the subject. PDF extraction review and the distinction between a title and full question still need clarification.
+
+PDF import supports selectable-text PDFs only, not scanned pages or OCR.
+
+**Why:** The user selected “Selectable-text PDFs only” after scanned-PDF recognition was discussed.
+
+**How to apply:** Extract program numbers and titles from embedded PDF text. Do not introduce OCR into first-version scope. Explain when a PDF lacks usable text and direct students to CSV or manual entry.
 
 CSV imports must allow students to map columns to fields rather than require fixed column names.
 
