@@ -93,6 +93,12 @@ Support both fit-to-available-width image insertion and template-defined image a
 
 **How to apply:** Keep image proportions without cropping or stretching. Allow ordinary image variables to fit available width and designated template areas for precise sizing. Tall-image overflow behavior and the exact image-area mapping mechanism remain open.
 
+Block document generation when required content is missing.
+
+**Why:** The user selected “Block until complete” rather than allowing drafts with warnings.
+
+**How to apply:** Validate required mappings and values before generating documents and identify affected experiments. This does not prohibit saving incomplete work; saving behavior remains a separate requirement.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
