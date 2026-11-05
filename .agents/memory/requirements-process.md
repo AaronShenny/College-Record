@@ -183,6 +183,12 @@ Detect installed language tools and guide students through installing missing pr
 
 **How to apply:** Check Python, a Java JDK, and a C compiler independently. Explain missing prerequisites without blocking record editing or formatting. Do not include automatic tool downloads/setup as an approved feature.
 
+PDF export must use installed Microsoft Word, not LibreOffice.
+
+**Why:** The user selected “Require Microsoft Word only” for PDF conversion prerequisites.
+
+**How to apply:** Specify installed Windows desktop Microsoft Word as the PDF conversion prerequisite. Detect its availability and explain when PDF export is unavailable. Do not add LibreOffice fallback or make Word a prerequisite for ordinary record-data editing or DOCX generation. In-app preview behavior remains unconfirmed.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
