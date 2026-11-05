@@ -127,7 +127,13 @@ The template-setup workflow must offer importing program numbers and titles from
 
 **Why:** The user approved the mapping workflow and added “upload the no, titles [extract it from the pdf or csv[map]], select the source code folder [optional].”
 
-**How to apply:** For CSV, map columns to the relevant fields; for PDF, extract program numbers and titles. Do not require a source folder to create programs or configure the subject. PDF extraction review and the distinction between a title and full question still need clarification.
+**How to apply:** For CSV, map columns to the relevant fields; for PDF, extract program numbers and supplied title/question text. Do not require a source folder to create programs or configure the subject. PDF extraction review still needs clarification.
+
+Whether a title and full question are separate depends on the subject.
+
+**Why:** The user answered “depends on the subject” rather than choosing a single global title/question model.
+
+**How to apply:** Let subject-specific template mappings determine whether title, question, or both are used. Do not globally merge the fields, require both for every subject, or automatically invent/shorten titles.
 
 PDF import supports selectable-text PDFs only, not scanned pages or OCR.
 
