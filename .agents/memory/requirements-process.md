@@ -141,6 +141,12 @@ Import source files once with no ongoing link to the original files.
 
 **How to apply:** Keep imported copies independent in the student's app-managed Drive folder. Do not watch original folders, automatically refresh imported code, or write changes back to originals. Updates from source files require explicit reimport; collision handling remains open.
 
+First-version document outputs include a Word file per program, a combined subject Word record, and PDF export.
+
+**Why:** The user selected all three output options.
+
+**How to apply:** Include all three in the SRS. Combined-record ordering, pagination, selection, and PDF conversion prerequisites remain to be discussed.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
