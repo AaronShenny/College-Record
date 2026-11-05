@@ -31,19 +31,25 @@ Support both student-supplied output text/screenshots and running student-provid
 
 **Why:** The user selected “Support both methods” for program output.
 
-**How to apply:** Include both output paths in the SRS. Language support, runtime prerequisites, interactive input, and execution safeguards still need discussion; code execution does not imply AI generation.
+**How to apply:** Include both output paths in the SRS. Runtime prerequisites and execution safeguards still need discussion; code execution does not imply AI generation.
 
 First-version code execution must support Python, Java, and C.
 
 **Why:** The user explicitly selected these three languages.
 
-**How to apply:** Scope execution requirements to these languages; do not include C++ by default. Runtime setup and interactive input remain open requirements.
+**How to apply:** Scope execution requirements to these languages; do not include C++ by default. Runtime setup remains an open requirement.
 
 Students should type input interactively during program execution.
 
 **Why:** The user selected “Type interactively during execution,” not prepared input or both.
 
 **How to apply:** Specify an interactive input/output experience for Python, Java, and C. Do not assume a separate prepared-input mode is required.
+
+Students can choose per experiment whether captured output is inserted as editable text or a terminal image.
+
+**Why:** The user selected “Choose per experiment” for output appearance in Word records.
+
+**How to apply:** Preserve this choice at experiment level rather than enforcing one output format for an entire subject.
 
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
