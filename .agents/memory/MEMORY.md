@@ -1,1 +1,2 @@
 - [Product scope and requirements process](requirements-process.md) — Windows record maker with Drive storage; discuss features and write an SRS before building.
+- [Approved Drive storage design](drive-storage-design.md) — Visible per-student app folder, JSON metadata, separate assets, stable IDs, local-first sync; retention and conflict details remain open.
