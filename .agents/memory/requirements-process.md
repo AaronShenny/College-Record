@@ -39,6 +39,12 @@ First-version program output supports both student-supplied screenshots and outp
 
 **How to apply:** Retain image and editable text output entry without running programs. Provide the requested screenshot PASTE action in each program edit/preview window.
 
+Deleted programs and subject records move to a recoverable app Trash area rather than being permanently removed immediately.
+
+**Why:** The user selected “Move to recoverable Trash.”
+
+**How to apply:** Hide trashed items from active records, allow restoration, and require separate confirmation for permanent removal. Store the recoverable Trash in the app's Drive folder. Automatic expiry or retention duration has not been agreed.
+
 Students upload a Word template containing variables such as `[NO]`, and the app provides an option to map those variables.
 
 **Why:** The user explicitly requested uploaded templates with variable mapping and further discussion of this feature.
