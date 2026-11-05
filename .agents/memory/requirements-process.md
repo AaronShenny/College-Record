@@ -207,6 +207,12 @@ Support autosave and a Save Now action, including saving unfinished records.
 
 **How to apply:** Save progress locally and sync when connected; show local-save, syncing, and Drive-save states distinctly. Missing required fields block generation, not saving progress.
 
+Restrict sign-in to college-issued Google accounts.
+
+**Why:** The user selected “College-issued Google accounts only.”
+
+**How to apply:** Do not permit unrestricted personal Google accounts. The college's allowed email domain or domains and verification policy still need to be established; never infer them from the audience alone.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
