@@ -211,7 +211,13 @@ Restrict sign-in to college-issued Google accounts.
 
 **Why:** The user selected “College-issued Google accounts only.”
 
-**How to apply:** Do not permit unrestricted personal Google accounts. The college's allowed email domain or domains and verification policy still need to be established; never infer them from the audience alone.
+**How to apply:** Do not permit unrestricted personal Google accounts. Verify the authenticated Google identity against the confirmed allowed domain, not merely an address typed into the app.
+
+The allowed college Google-account email domain is `rajagiri.edu`.
+
+**Why:** The user supplied this domain when asked which college email domains should be allowed.
+
+**How to apply:** Use exactly this domain in the SRS access requirement; additional domains and subdomains have not been approved.
 
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
