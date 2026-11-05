@@ -39,6 +39,12 @@ First-version code execution must support Python, Java, and C.
 
 **How to apply:** Scope execution requirements to these languages; do not include C++ by default. Runtime setup and interactive input remain open requirements.
 
+Students should type input interactively during program execution.
+
+**Why:** The user selected “Type interactively during execution,” not prepared input or both.
+
+**How to apply:** Specify an interactive input/output experience for Python, Java, and C. Do not assume a separate prepared-input mode is required.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
