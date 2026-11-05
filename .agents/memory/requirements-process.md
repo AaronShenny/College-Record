@@ -31,7 +31,13 @@ Do not include code execution in the first version. Provide a `PASTE` option in 
 
 **Why:** The user revised the scope: “for the first version i think code execution would be difficult, i think let the students paste the screenshot, we would give them 'PASTE' option in each program edit preview window.”
 
-**How to apply:** Remove earlier execution requirements from the first-version SRS, including runtime/compiler detection, interactive input, run/stop controls, timeouts, entry-point configuration, and automatic terminal capture. Screenshot paste is clipboard image input, not executing code or rendering a full Word-document preview. Whether supplied output text remains supported needs clarification.
+**How to apply:** Remove earlier execution requirements from the first-version SRS, including runtime/compiler detection, interactive input, run/stop controls, timeouts, entry-point configuration, and automatic terminal capture. Screenshot paste is clipboard image input, not executing code or rendering a full Word-document preview.
+
+First-version program output supports both student-supplied screenshots and output text.
+
+**Why:** Following removal of code execution, the user explicitly selected “Screenshots and output text.”
+
+**How to apply:** Retain image and editable text output entry without running programs. Provide the requested screenshot PASTE action in each program edit/preview window.
 
 Students upload a Word template containing variables such as `[NO]`, and the app provides an option to map those variables.
 
@@ -223,7 +229,7 @@ Support multiple saved output captures per program, with students selecting whic
 
 **Why:** The user selected “Multiple captures per program” after multiple test runs and text-or-image capture choices were described.
 
-**How to apply:** Preserve multiple supplied output images per program rather than implicitly replacing earlier images. Automatic capture from execution is no longer first-version scope. Output text support needs clarification following the screenshot-paste scope revision.
+**How to apply:** Preserve multiple supplied output items per program rather than implicitly replacing earlier items. Both screenshots and output text are supported. Automatic capture from execution is no longer first-version scope.
 
 Use one output variable to insert a program's selected captures sequentially.
 
