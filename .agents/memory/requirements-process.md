@@ -243,6 +243,12 @@ Use separate file mappings for multi-file programs, not a combined code field.
 
 **How to apply:** Template variables map to reusable file roles such as Main code and Helper code, with actual files assigned per program. Placement follows the template. Do not concatenate all selected files into a single field as an approved feature.
 
+First-version execution supports terminal programs only.
+
+**Why:** The user selected “Terminal programs only” after graphical execution and capture were distinguished.
+
+**How to apply:** Limit execution and automatic output capture to terminal-based Python, Java, and C programs. Students may still include graphical program source and supply screenshots themselves; do not implement automatic graphical execution or window capture.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
