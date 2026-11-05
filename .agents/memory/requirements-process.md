@@ -261,6 +261,12 @@ Use one output variable to insert a program's selected captures sequentially.
 
 **How to apply:** A variable such as `[OUTPUT]` receives the selected captures one after another, accommodating different capture counts per program. Keep this distinct from the confirmed separate mappings for source files.
 
+Program execution uses manual stopping only, without an automatic runtime timeout.
+
+**Why:** The user selected “Manual stop only” after infinite loops, interactive input waits, and configurable timeouts were discussed.
+
+**How to apply:** Provide a Stop control for running programs; do not impose an automatic runtime duration limit. Manual stopping does not imply sandboxing or protection from filesystem/network access.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
