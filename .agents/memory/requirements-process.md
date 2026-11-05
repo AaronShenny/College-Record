@@ -249,6 +249,12 @@ First-version execution supports terminal programs only.
 
 **How to apply:** Limit execution and automatic output capture to terminal-based Python, Java, and C programs. Students may still include graphical program source and supply screenshots themselves; do not implement automatic graphical execution or window capture.
 
+Support multiple saved output captures per program, with students selecting which captures appear in the record.
+
+**Why:** The user selected “Multiple captures per program” after multiple test runs and text-or-image capture choices were described.
+
+**How to apply:** Do not overwrite earlier captures on each run. Allow text-or-image representation per capture. How multiple captures fill the Word template remains to be decided.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
