@@ -33,6 +33,12 @@ Support both student-supplied output text/screenshots and running student-provid
 
 **How to apply:** Include both output paths in the SRS. Language support, runtime prerequisites, interactive input, and execution safeguards still need discussion; code execution does not imply AI generation.
 
+First-version code execution must support Python, Java, and C.
+
+**Why:** The user explicitly selected these three languages.
+
+**How to apply:** Scope execution requirements to these languages; do not include C++ by default. Runtime setup and interactive input remain open requirements.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
