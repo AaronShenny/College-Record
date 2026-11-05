@@ -27,6 +27,12 @@ The app should format student-provided content.
 
 **How to apply:** Scope the record-making workflow around content students supply. Do not carry the legacy scripts' AI generation into the requirements without a new request.
 
+Support both student-supplied output text/screenshots and running student-provided code to capture output.
+
+**Why:** The user selected “Support both methods” for program output.
+
+**How to apply:** Include both output paths in the SRS. Language support, runtime prerequisites, interactive input, and execution safeguards still need discussion; code execution does not imply AI generation.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
