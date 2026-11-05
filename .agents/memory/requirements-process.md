@@ -111,6 +111,12 @@ Use one template per subject record.
 
 **How to apply:** All programs within a subject record use its single template and mapping. Do not introduce per-program template selection.
 
+Support both manual program entry and bulk import of questions from CSV and source files from a folder.
+
+**Why:** The user selected “Both methods” for adding programs to a subject record.
+
+**How to apply:** Include both entry paths in the SRS. CSV columns, source-file matching rules, and duplicate handling remain open requirements.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
