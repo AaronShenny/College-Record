@@ -225,6 +225,12 @@ Organize subject records using `semester-XX/subject-name` under the student's ap
 
 **How to apply:** Preserve semester-to-subject hierarchy in the SRS and Drive organization. Each subject record retains its one template and mappings.
 
+One program can contain multiple source files.
+
+**Why:** The user selected “Support multiple source files.”
+
+**How to apply:** Include grouped source files per program in the SRS. Entry-point selection, language-specific execution, source-file order, and which files appear in Word still need discussion.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
