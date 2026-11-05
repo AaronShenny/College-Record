@@ -237,6 +237,12 @@ Students can select and order which source files appear in the Word record, inde
 
 **How to apply:** Preserve numeric program order while allowing source-file selection and ordering within each program. Identify included files by filename. The template insertion mechanism remains open.
 
+Use separate file mappings for multi-file programs, not a combined code field.
+
+**Why:** The user selected “Separate file mappings” rather than one combined code field or both.
+
+**How to apply:** Template variables map to reusable file roles such as Main code and Helper code, with actual files assigned per program. Placement follows the template. Do not concatenate all selected files into a single field as an approved feature.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
