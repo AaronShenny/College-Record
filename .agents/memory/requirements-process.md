@@ -165,6 +165,12 @@ When source code is edited or replaced, warn that existing output may be outdate
 
 **How to apply:** Preserve existing screenshots and output text; do not require output-review confirmation before generation. This warning does not waive the separate rule that missing required content blocks generation. The app does not verify code/output correctness.
 
+The user approved the proposed program-editing workflow, including Add Image, Add Text, output-item ordering, and Previous Program / Next Program navigation.
+
+**Why:** The user selected “Use this workflow” after reviewing the complete editing sequence.
+
+**How to apply:** Open a program from the subject's numeric list, edit template-driven per-program fields and source files, inherit whole-record values, and manage output as selectable ordered text/image items. Provide clipboard PASTE, image-file selection, editable output text, image preview, removal, and previous/next navigation. Preserve autosave/Save Now and generate/open-in-Word behavior; do not confuse content preview with rendered Word preview.
+
 First-version document outputs include a Word file per program, a combined subject Word record, and PDF export.
 
 **Why:** The user selected all three output options.
