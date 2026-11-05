@@ -127,7 +127,13 @@ The template-setup workflow must offer importing program numbers and titles from
 
 **Why:** The user approved the mapping workflow and added “upload the no, titles [extract it from the pdf or csv[map]], select the source code folder [optional].”
 
-**How to apply:** For CSV, map columns to the relevant fields; for PDF, extract program numbers and supplied title/question text. Do not require a source folder to create programs or configure the subject. PDF extraction review still needs clarification.
+**How to apply:** For CSV, map columns to the relevant fields; for PDF, extract program numbers and supplied title/question text. Do not require a source folder to create programs or configure the subject.
+
+The user approved a review-before-creation workflow for PDF/CSV imports.
+
+**Why:** The user selected “Use this import workflow” after reviewing the proposed sequence.
+
+**How to apply:** Show editable extracted/mapped entries before creation; allow corrections, joining incorrectly split text, removing unwanted entries, and assigning text to subject-specific fields. Flag missing/duplicate numbers for correction and skip program numbers already present. Create selected valid entries on confirmation without requiring code/output. Then optionally import a local/Drive source folder with reviewed suggested or manual assignments.
 
 Whether a title and full question are separate depends on the subject.
 
