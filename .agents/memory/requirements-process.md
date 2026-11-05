@@ -75,6 +75,12 @@ Each custom field can have either whole-record or per-experiment value scope.
 
 **How to apply:** Whole-record values are entered once and reused across experiments; per-experiment values can differ for each experiment. Keep scope selectable rather than inferred from a field's name.
 
+Use template formatting only; do not provide field-level formatting overrides in the app.
+
+**Why:** The user selected “Use template formatting only.”
+
+**How to apply:** Preserve the Word template's formatting when inserting mapped content. Do not carry proposed font/size override controls into the SRS. Image sizing and placeholder placement rules remain open.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
