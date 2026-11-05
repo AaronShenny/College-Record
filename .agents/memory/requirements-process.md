@@ -123,6 +123,12 @@ Support both manual program entry and bulk import of questions from CSV and sour
 
 **How to apply:** Include both entry paths in the SRS. CSV columns, source-file matching rules, and duplicate handling remain open requirements.
 
+The template-setup workflow must offer importing program numbers and titles from PDF or CSV, and an optional source-code-folder selection.
+
+**Why:** The user approved the mapping workflow and added “upload the no, titles [extract it from the pdf or csv[map]], select the source code folder [optional].”
+
+**How to apply:** For CSV, map columns to the relevant fields; for PDF, extract program numbers and titles. Do not require a source folder to create programs or configure the subject. PDF extraction review, scanned-document support, and the distinction between a title and full question still need clarification.
+
 CSV imports must allow students to map columns to fields rather than require fixed column names.
 
 **Why:** The user selected “Map CSV columns.”
@@ -266,6 +272,12 @@ Use separate file mappings for multi-file programs, not a combined code field.
 **Why:** The user selected “Separate file mappings” rather than one combined code field or both.
 
 **How to apply:** Template variables map to reusable file roles such as Main code and Helper code, with actual files assigned per program. Placement follows the template. Do not concatenate all selected files into a single field as an approved feature.
+
+The user approved the template-mapping workflow, including distinct-variable detection and required/optional fields.
+
+**Why:** The user explicitly said “use this mapping workflow.”
+
+**How to apply:** Detect bracketed variables in supported Word locations, show each distinct variable once, map repeated occurrences consistently, and allow built-in fields, custom fields, and source-file roles. Optional empty variables become blank content without removing surrounding layout. Save incomplete setup, but validate required mappings/content before generation; check document layout by opening a generated completed program in Word.
 
 Support multiple saved output captures per program, with students selecting which captures appear in the record.
 
