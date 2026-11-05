@@ -147,6 +147,12 @@ First-version document outputs include a Word file per program, a combined subje
 
 **How to apply:** Include all three in the SRS. Combined-record ordering, pagination, selection, and PDF conversion prerequisites remain to be discussed.
 
+Always arrange programs in the combined record in program-number order.
+
+**Why:** The user selected “Always use program-number order” rather than allowing rearrangement.
+
+**How to apply:** Use numeric order, not filename alphabetical order. Do not add manual reordering. Inclusion selection and page-break behavior remain unconfirmed.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
