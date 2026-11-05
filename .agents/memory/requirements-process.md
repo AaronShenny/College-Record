@@ -15,6 +15,12 @@ The intended audience is “Anyone at my college,” not only the creator or the
 
 **How to apply:** Discuss student data ownership, shared resources, and access permissions before finalizing the SRS. Do not assume that college-wide use implies college administration or a central Drive.
 
+Each student's records should be stored in that student's own Google Drive.
+
+**Why:** The user explicitly chose “Each student’s own Drive” over shared-template storage or one central college Drive.
+
+**How to apply:** Treat per-student Drive ownership as confirmed. Do not assume a central college repository or shared-template service.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
