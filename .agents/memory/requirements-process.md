@@ -9,6 +9,12 @@ The user wants a Windows desktop application for college Word-record making, wit
 
 **How to apply:** Keep these as requirements during feature discussions; do not substitute a browser app or introduce a separate database without agreement.
 
+The intended audience is “Anyone at my college,” not only the creator or their classmates.
+
+**Why:** The user selected this audience during requirements discussion.
+
+**How to apply:** Discuss student data ownership, shared resources, and access permissions before finalizing the SRS. Do not assume that college-wide use implies college administration or a central Drive.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
