@@ -153,6 +153,12 @@ Always arrange programs in the combined record in program-number order.
 
 **How to apply:** Use numeric order, not filename alphabetical order. Do not add manual reordering. Inclusion selection and page-break behavior remain unconfirmed.
 
+Each program must start on a new page in the combined record.
+
+**Why:** The user selected “Start each on a new page.”
+
+**How to apply:** Separate successive programs with a new-page boundary; do not interpret this as requiring every program to fit on a single page.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
