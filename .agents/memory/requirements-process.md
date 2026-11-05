@@ -105,6 +105,12 @@ Use one template per subject record.
 
 **How to apply:** All programs within a subject record use its single template and mapping. Do not introduce per-program template selection.
 
+Allow replacing a subject's template after programs have been added, with mapping review.
+
+**Why:** The user selected “Allow replacement with mapping review.”
+
+**How to apply:** Keep only one active template per subject. Preserve questions, source files, output, custom-field values, and previously generated documents. Review mappings before further generation; newly generated documents use the replacement template.
+
 Support both manual program entry and bulk import of questions from CSV and source files from a folder.
 
 **Why:** The user selected “Both methods” for adding programs to a subject record.
