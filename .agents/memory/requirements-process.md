@@ -27,29 +27,11 @@ The app should format student-provided content.
 
 **How to apply:** Scope the record-making workflow around content students supply. Do not carry the legacy scripts' AI generation into the requirements without a new request.
 
-Support both student-supplied output text/screenshots and running student-provided code to capture output.
+Do not include code execution in the first version. Provide a `PASTE` option in each program's edit/preview window so students can paste output screenshots.
 
-**Why:** The user selected “Support both methods” for program output.
+**Why:** The user revised the scope: “for the first version i think code execution would be difficult, i think let the students paste the screenshot, we would give them 'PASTE' option in each program edit preview window.”
 
-**How to apply:** Include both output paths in the SRS. Runtime prerequisites and execution safeguards still need discussion; code execution does not imply AI generation.
-
-First-version code execution must support Python, Java, and C.
-
-**Why:** The user explicitly selected these three languages.
-
-**How to apply:** Scope execution requirements to these languages; do not include C++ by default. Runtime setup remains an open requirement.
-
-Students should type input interactively during program execution.
-
-**Why:** The user selected “Type interactively during execution,” not prepared input or both.
-
-**How to apply:** Specify an interactive input/output experience for Python, Java, and C. Do not assume a separate prepared-input mode is required.
-
-Students can choose per experiment whether captured output is inserted as editable text or a terminal image.
-
-**Why:** The user selected “Choose per experiment” for output appearance in Word records.
-
-**How to apply:** Preserve this choice at experiment level rather than enforcing one output format for an entire subject.
+**How to apply:** Remove earlier execution requirements from the first-version SRS, including runtime/compiler detection, interactive input, run/stop controls, timeouts, entry-point configuration, and automatic terminal capture. Screenshot paste is clipboard image input, not executing code or rendering a full Word-document preview. Whether supplied output text remains supported needs clarification.
 
 Students upload a Word template containing variables such as `[NO]`, and the app provides an option to map those variables.
 
@@ -169,19 +151,13 @@ Support working offline and syncing to Drive later.
 
 **Why:** The user selected “Work offline, sync later.”
 
-**How to apply:** Previously downloaded records can be edited offline, code can run with local tools, and documents can be generated when required resources are cached. Queue local changes for upload after reconnection and show unsynced status. First sign-in and uncached Drive content require connectivity.
+**How to apply:** Previously downloaded records can be edited offline and documents can be generated when required resources are cached. Queue local changes for upload after reconnection and show unsynced status. First sign-in and uncached Drive content require connectivity.
 
 Resolve conflicting saved changes using the most recently saved version.
 
 **Why:** The user selected “Use most recently saved version” after the risk of overwriting the other changes was explained.
 
 **How to apply:** Specify latest-save-wins conflict resolution rather than mandatory manual comparison. The definition of save time across offline devices and any recovery/history policy still need to be specified; do not assume latest upload means latest save.
-
-Detect installed language tools and guide students through installing missing prerequisites; do not automatically install them.
-
-**Why:** The user selected “Detect tools and guide installation.”
-
-**How to apply:** Check Python, a Java JDK, and a C compiler independently. Explain missing prerequisites without blocking record editing or formatting. Do not include automatic tool downloads/setup as an approved feature.
 
 PDF export must use installed Microsoft Word, not LibreOffice.
 
@@ -229,9 +205,9 @@ One program can contain multiple source files.
 
 **Why:** The user selected “Support multiple source files.”
 
-**How to apply:** Include grouped source files per program in the SRS. Entry-point selection, language-specific execution, source-file order, and which files appear in Word still need discussion.
+**How to apply:** Include grouped source files per program in the SRS for content storage and template mapping, not code execution.
 
-Students can select and order which source files appear in the Word record, independently of the files required for execution.
+Students can select and order which source files appear in the Word record.
 
 **Why:** The user selected “Let students select files” after selection, within-program ordering, and filename identification were described.
 
@@ -243,29 +219,17 @@ Use separate file mappings for multi-file programs, not a combined code field.
 
 **How to apply:** Template variables map to reusable file roles such as Main code and Helper code, with actual files assigned per program. Placement follows the template. Do not concatenate all selected files into a single field as an approved feature.
 
-First-version execution supports terminal programs only.
-
-**Why:** The user selected “Terminal programs only” after graphical execution and capture were distinguished.
-
-**How to apply:** Limit execution and automatic output capture to terminal-based Python, Java, and C programs. Students may still include graphical program source and supply screenshots themselves; do not implement automatic graphical execution or window capture.
-
 Support multiple saved output captures per program, with students selecting which captures appear in the record.
 
 **Why:** The user selected “Multiple captures per program” after multiple test runs and text-or-image capture choices were described.
 
-**How to apply:** Do not overwrite earlier captures on each run. Allow text-or-image representation per capture.
+**How to apply:** Preserve multiple supplied output images per program rather than implicitly replacing earlier images. Automatic capture from execution is no longer first-version scope. Output text support needs clarification following the screenshot-paste scope revision.
 
 Use one output variable to insert a program's selected captures sequentially.
 
 **Why:** The user selected “One output variable” rather than separate output variables or both methods.
 
 **How to apply:** A variable such as `[OUTPUT]` receives the selected captures one after another, accommodating different capture counts per program. Keep this distinct from the confirmed separate mappings for source files.
-
-Program execution uses manual stopping only, without an automatic runtime timeout.
-
-**Why:** The user selected “Manual stop only” after infinite loops, interactive input waits, and configurable timeouts were discussed.
-
-**How to apply:** Provide a Stop control for running programs; do not impose an automatic runtime duration limit. Manual stopping does not imply sandboxing or protection from filesystem/network access.
 
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
