@@ -195,6 +195,12 @@ Preview formatted records by opening generated documents in Microsoft Word, not 
 
 **How to apply:** Include an open-in-Word workflow for generated records. Do not add embedded document rendering or an in-app Word editor to the first-version scope. Handling edits made in Word remains open.
 
+Save a new version whenever a Word document is regenerated, retaining the previous generated document.
+
+**Why:** The user selected “Save a new version” after the risk of losing Word-only edits was explained.
+
+**How to apply:** Do not silently replace previous generated documents. Keep generated-document versioning separate from latest-save-wins conflict resolution for app data. Edits in Word do not automatically update the app's mapped content.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
