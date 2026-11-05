@@ -153,11 +153,11 @@ Import source files once with no ongoing link to the original files.
 
 **How to apply:** Keep imported copies independent in the student's app-managed Drive folder. Do not watch original folders, automatically refresh imported code, or write changes back to originals. Updates from source files require explicit reimport; collision handling remains open.
 
-Keep imported source code read-only inside the app.
+Allow students to edit imported source code directly in the program edit/preview window and explicitly replace a source file within the existing program.
 
-**Why:** The user selected “Keep imported code read-only” rather than allowing code editing.
+**Why:** The user corrected their previous read-only choice: “yes yes i made a mistake earlier” and requested a “Replace File action within the existing program.”
 
-**How to apply:** Display imported code without an in-app editing capability. Do not modify original files. Explicit replacement of an imported file and whether pasted code remains editable still need clarification.
+**How to apply:** Edits and confirmed file replacement affect the app-managed saved copy, not original source files. Preserve the existing program and its other content when replacing a file. Do not treat the superseded read-only choice as a requirement, reintroduce code execution, or change the skip-duplicates bulk-import rule.
 
 First-version document outputs include a Word file per program, a combined subject Word record, and PDF export.
 
