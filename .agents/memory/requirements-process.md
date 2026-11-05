@@ -159,6 +159,12 @@ Each program must start on a new page in the combined record.
 
 **How to apply:** Separate successive programs with a new-page boundary; do not interpret this as requiring every program to fit on a single page.
 
+Students can generate documents for one program, selected programs, or the entire subject record.
+
+**Why:** The user selected “Selected programs or entire record” after the selection behavior was explained.
+
+**How to apply:** Preserve numeric ordering and new-page boundaries for selected programs. Required-content validation applies to included programs; incomplete programs outside the selection do not block generation.
+
 Discuss the desktop application's features first and eventually create an SRS document before building anything.
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
