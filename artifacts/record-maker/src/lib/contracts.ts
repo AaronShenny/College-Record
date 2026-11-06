@@ -2,6 +2,21 @@ import { z } from "zod";
 
 const id = z.string().uuid();
 const shortText = z.string().max(500);
+export const fieldSchema = z.object({
+  id, label: z.string().min(1).max(120), type: z.enum(["text", "image"]),
+  scope: z.enum(["subject", "program"]), required: z.boolean(),
+}).strict();
+export const mappingSchema = z.object({
+  field: z.string().min(1).max(120), required: z.boolean(),
+  imageFit: z.enum(["width", "box"]).optional(),
+  widthCm: z.number().positive().max(50).optional(), heightCm: z.number().positive().max(50).optional(),
+}).strict();
+export const templateSchema = z.object({
+  id, name: z.string().max(200), dataBase64: z.string().max(30_000_000),
+  placeholders: z.array(z.string().max(120)).max(300),
+  mappings: z.record(mappingSchema), reviewed: z.boolean(), uploadedAt: z.string().datetime(),
+}).strict();
+const values = z.record(z.string().max(12_000_000)).optional();
 export const sourceSchema = z.object({
   id, name: z.string().min(1).max(200).refine(v => !/[\\/\x00]/.test(v), "Use a filename, not a path"),
   role: z.string().max(80), code: z.string().max(1_000_000), include: z.boolean(),
@@ -15,11 +30,13 @@ export const programSchema = z.object({
   createdAt: z.string().datetime(), updatedAt: z.string().datetime(), trashedAt: z.string().datetime().nullable(),
   sources: z.array(sourceSchema).max(50), outputs: z.array(outputSchema).max(100),
   outputMayBeStale: z.boolean(),
+  values,
 }).strict();
 export const subjectSchema = z.object({
   id, name: z.string().trim().min(1).max(150), semester: z.number().int().min(1).max(20),
   courseCode: z.string().max(50), updatedAt: z.string().datetime(), trashedAt: z.string().datetime().nullable(),
   programs: z.array(programSchema).max(500),
+  template: templateSchema.nullable().optional(), fields: z.array(fieldSchema).max(100).optional(), values,
 }).strict().superRefine((subject, ctx) => {
   const numbers = subject.programs.filter(p => !p.trashedAt).map(p => p.number);
   if (new Set(numbers).size !== numbers.length) ctx.addIssue({ code: "custom", message: "Active program numbers must be unique within a subject" });
@@ -29,8 +46,19 @@ export const workspaceSchema = z.object({
 }).strict().superRefine((workspace, ctx) => {
   const ids: string[] = [];
   for (const subject of workspace.subjects) {
-    ids.push(subject.id);
+    ids.push(subject.id, ...(subject.fields || []).map(f => f.id));
+    if (subject.template) ids.push(subject.template.id);
+    const definitions = new Map((subject.fields || []).map(f => [f.id, f]));
+    const checkValues = (values: Record<string, string> | undefined, scope: "subject" | "program") => {
+      for (const [key, value] of Object.entries(values || {})) {
+        const definition = definitions.get(key);
+        if (!definition || definition.scope !== scope) ctx.addIssue({ code: "custom", message: "Custom values must belong to a defined field with the correct scope" });
+        if (definition?.type === "image" && value && !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) ctx.addIssue({ code: "custom", message: "Custom image field must contain a PNG, JPEG, or WebP image" });
+      }
+    };
+    checkValues(subject.values, "subject");
     for (const program of subject.programs) {
+      checkValues(program.values, "program");
       ids.push(program.id, ...program.sources.map(s => s.id), ...program.outputs.map(o => o.id));
     }
   }
@@ -45,7 +73,8 @@ export type OutputItem = Program["outputs"][number];
 export type SaveReceipt = { savedAt: string; revisionId: string; pendingItems: number; storage: "filesystem" | "browser" };
 export type RuntimeInfo = {
   mode: "desktop" | "browser-preview"; version: string; platform: string;
-  storageLabel: string; driveConnected: false; pythonAvailable: boolean | null;
+  storageLabel: string; driveConnected: boolean; pythonAvailable: boolean | null;
+  requiresSignIn?: boolean;
 };
 export type WorkerResult = { jobId: string; result: Record<string, unknown> };
 export interface DesktopBridge {
@@ -56,7 +85,11 @@ export interface DesktopBridge {
   pasteImage(): Promise<Extract<OutputItem, { kind: "image" }> | null>;
   checkPython(): Promise<WorkerResult>;
   inspectSnapshot(subjectId: string, programIds: string[]): Promise<WorkerResult>;
+  workflow?(action: string, payload: Record<string, unknown>): Promise<any>;
 }
+export type TemplateConfig = z.infer<typeof templateSchema>;
+export type FieldDefinition = z.infer<typeof fieldSchema>;
+export type FieldMapping = z.infer<typeof mappingSchema>;
 export const emptyWorkspace = (): Workspace => ({ schemaVersion: 1, subjects: [] });
 export function pendingItemCount(workspace: Workspace): number {
   return workspace.subjects.reduce((total, subject) => total + 1 + subject.programs.length, 0);

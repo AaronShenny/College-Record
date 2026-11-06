@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, FileInput, FileText, LayoutTemplate, Pencil, Plus, Trash2 } from "lucide-react";
 import { Shell } from "@/components/shell";
 import { EmptyState, PageHead, fmtTime, go, href } from "@/components/kit";
 import { ConfirmDialog, ProgramDialog, SubjectDialog } from "@/components/dialogs";
@@ -30,6 +30,11 @@ export default function SubjectPage({ id }: { id: string }) {
             <button className="btn danger" onClick={() => setTrashSubject(true)} data-testid="button-trash-subject"><Trash2 size={13} /> Move to Trash</button>
             <button className="btn primary" onClick={() => setAdd(true)} data-testid="button-new-program"><Plus size={14} /> New program</button>
           </>} />
+        <div className="subject-actions">
+          <a className="sa-card" href={href(`/template/${subject.id}`)} data-testid="link-template"><LayoutTemplate size={18} /><span><b>Template & mapping</b><small>{subject.template ? `${subject.template.name} · ${subject.template.reviewed ? "reviewed" : "needs review"}` : "No Word template yet"}</small></span></a>
+          <a className="sa-card" href={href(`/import/${subject.id}`)} data-testid="link-import"><FileInput size={18} /><span><b>Import questions & code</b><small>PDF or CSV list, optional source folder</small></span></a>
+          <a className="sa-card" href={href(`/documents/${subject.id}`)} data-testid="link-documents"><FileText size={18} /><span><b>Generate records</b><small>Word files, optional PDF</small></span></a>
+        </div>
         <section className="panel panel-pad">
           {progs.length === 0 ? (
             <EmptyState mark={pad(1)} title="No programs yet" action={<button className="btn primary" onClick={() => setAdd(true)}><Plus size={14} /> Add program 1</button>}>
@@ -38,7 +43,7 @@ export default function SubjectPage({ id }: { id: string }) {
           ) : (
             <div style={{ overflowX: "auto" }}><table className="table">
               <thead><tr><th style={{ width: 60 }}>No.</th><th>Title</th><th>Sources</th><th>Outputs</th><th>Status</th><th>Updated</th><th><span className="sr-only">Actions</span></th></tr></thead>
-              <tbody>{progs.map(p => { const st = programState(p); return (
+              <tbody>{progs.map(p => { const st = programState(p, subject); return (
                 <tr key={p.id} data-testid={`row-program-${p.id}`}>
                   <td className="mono" style={{ color: "#8f6b44" }}>{pad(p.number)}</td>
                   <td><a href={href(`/program/${subject.id}/${p.id}`)} style={{ fontWeight: 700 }}>{p.title || <span className="muted">Untitled program</span>}</a></td>

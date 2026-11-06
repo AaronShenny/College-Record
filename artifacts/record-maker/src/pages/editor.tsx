@@ -5,7 +5,8 @@ import { EmptyState, href } from "@/components/kit";
 import { ProgramDialog } from "@/components/dialogs";
 import { bridge } from "@/lib/bridge";
 import type { OutputItem, Program, SourceFile, Subject } from "@/lib/contracts";
-import { activePrograms, errMsg, mapProgram, newId, pad, programChecks, programState, useStore } from "@/hooks/use-workspace";
+import { FieldValue, setValue } from "@/components/field-values";
+import { cloudLabel, activePrograms, errMsg, mapProgram, newId, pad, programChecks, programState, useStore } from "@/hooks/use-workspace";
 
 const ROLES = ["Main code", "Helper code", "Header", "Input data", "Unassigned"];
 const MAX_CODE = 1_000_000;
@@ -43,13 +44,13 @@ export default function Editor({ sid, pid }: { sid: string; pid: string }) {
 }
 
 function EditorBody({ subject, program }: { subject: Subject; program: Program }) {
-  const { update, saveNow, runtime, notify, setDraft } = useStore();
+  const { update, saveNow, runtime, notify, setDraft, cloud } = useStore();
   const [addOpen, setAddOpen] = useState(false);
   const progs = activePrograms(subject);
   const idx = progs.findIndex(p => p.id === program.id);
   const prev = progs[idx - 1]; const next = progs[idx + 1];
   const desktop = runtime?.mode === "desktop";
-  const st = programState(program);
+  const st = programState(program, subject);
 
   const patch = (fn: (p: Program) => Program, stale = false) => update(w => mapProgram(w, subject.id, program.id, fn, stale));
 
@@ -155,7 +156,7 @@ function EditorBody({ subject, program }: { subject: Subject; program: Program }
           </span>
           <div className="save-status">
             <SaveIndicator />
-            <span className="muted"><i className="dot" />Drive sync pending</span>
+            <span className="muted" data-testid="status-editor-drive"><i className="dot" />{cloudLabel(cloud).text}</span>
             <button className="btn small primary" onClick={saveNow} data-testid="button-save-now"><Save size={12} /> Save Now</button>
           </div>
         </div>
@@ -163,7 +164,7 @@ function EditorBody({ subject, program }: { subject: Subject; program: Program }
         <div className="editor-layout">
           <aside className="program-list-panel" aria-label="Programs in this subject">
             <div className="program-list-title"><div className="kicker">Program list</div><span className="badge neutral">{progs.length}</span></div>
-            {progs.map(p => { const t = programState(p).tone; return (
+            {progs.map(p => { const t = programState(p, subject).tone; return (
               <a key={p.id} className={`program-list-row ${p.id === program.id ? "selected" : ""}`} href={href(`/program/${subject.id}/${p.id}`)} aria-current={p.id === program.id ? "page" : undefined}>
                 <span className="list-no">{pad(p.number)}</span><span>{p.title || "Untitled"}</span><i className={`list-status ${t === "good" ? "" : t === "warn" ? "status-warn" : "status-empty"}`} aria-hidden="true" />
               </a>); })}
@@ -185,6 +186,14 @@ function EditorBody({ subject, program }: { subject: Subject; program: Program }
                   <textarea rows={3} maxLength={100000} value={program.question} onChange={e => patch(p => ({ ...p, question: e.target.value }))} placeholder="Paste the question exactly as given in your lab manual" data-testid="input-question" /></label>
               </div>
             </section>
+
+            {(subject.fields ?? []).length > 0 && <section className="panel panel-pad" aria-labelledby="h-fields">
+              <h2 id="h-fields" style={{ marginTop: 0 }}>Template fields</h2>
+              <div className="fv-grid">
+                {(subject.fields ?? []).filter(f => f.scope === "program").map(f => <FieldValue key={f.id} def={f} value={program.values?.[f.id]} onChange={v => patch(p => ({ ...p, values: setValue(p.values, f.id, v) }))} />)}
+                {(subject.fields ?? []).filter(f => f.scope === "subject").map(f => <FieldValue key={f.id} def={f} value={subject.values?.[f.id]} readOnly origin="From subject" />)}
+              </div>
+            </section>}
 
             <section className="panel" aria-labelledby="h-sources">
               <div className="block-head">
@@ -248,10 +257,10 @@ function EditorBody({ subject, program }: { subject: Subject; program: Program }
             <div><div className="kicker">Output items included</div><p style={{ margin: "4px 0 0" }}>{program.outputs.filter(o => o.include).length} of {program.outputs.length}</p></div>
             <div className="panel" style={{ padding: 10 }}>
               <div className="kicker">Checklist</div>
-              {programChecks(program).map(c => <div key={c.label} className={`check-row ${c.ok ? "ok" : "miss"}`}>{c.ok ? <Check size={13} /> : <AlertTriangle size={13} />}{c.label}</div>)}
+              {programChecks(program, subject).map(c => <div key={c.label} className={`check-row ${c.ok ? "ok" : "miss"}`}>{c.ok ? <Check size={13} /> : <AlertTriangle size={13} />}{c.label}</div>)}
               {program.outputMayBeStale && <div className="check-row miss"><RefreshCw size={13} />Output may be outdated <small className="muted">(non-blocking)</small></div>}
             </div>
-            <div className="notice blue" style={{ fontSize: 11 }}>This is a content summary, not a Word preview. Document generation is not available in this build.</div>
+            <div className="notice blue" style={{ fontSize: 11 }}>This is a content summary, not a Word preview. Generate the Word record from Documents.</div>
           </aside>
         </div>
       </div>

@@ -23,7 +23,7 @@ export default function TrashPage() {
   return (
     <Shell active="trash" crumb="Trash">
       <div className="page">
-        <PageHead eyebrow="Recoverable" title="Trash" description="Items here can always be restored. Permanent deletion is not available because nothing has been synced to Drive yet." />
+        <PageHead eyebrow="Recoverable" title="Trash" description="Items here can always be restored. Permanent deletion is intentionally unavailable until a retention policy is decided." />
         {empty ? <div className="panel"><EmptyState mark="0" title="Trash is empty">Subjects and programs you move to Trash appear here with a Restore button.</EmptyState></div> : (
           <section className="panel panel-pad">
             <table className="table">

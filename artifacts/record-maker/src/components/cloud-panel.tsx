@@ -1,0 +1,114 @@
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Cloud, FileKey, LogIn, LogOut, RefreshCw, RotateCcw } from "lucide-react";
+import { Modal, fmtTime } from "./kit";
+import { checkUpdates, configureGoogle, connectDrive, logoutCleanup, restartForUpdate, syncDrive, type CloudStatus } from "@/lib/workflow-api";
+import { cloudLabel, errMsg, useStore } from "@/hooks/use-workspace";
+
+const keyOf = (s: CloudStatus | null) => (s?.connected ? s.account?.email ?? "connected" : "");
+
+export function CloudPanel() {
+  const { runtime, reload, notify, cloud: status, cloudError, refreshCloud, isClean: clean } = useStore();
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState(false);
+  const [ack, setAck] = useState(false);
+  const account = useRef<string | null>(null);
+  const cleanRef = useRef(clean); cleanRef.current = clean;
+  const desktop = runtime?.mode === "desktop";
+
+  // Account change detected from the global poll: reload only when clean.
+  useEffect(() => {
+    if (!status) return;
+    const k = keyOf(status);
+    if (account.current !== null && account.current !== k) {
+      if (cleanRef.current) { reload(); notify(k ? "Signed-in workspace loaded." : "Signed out. Local workspace loaded."); }
+      else notify("The account changed while you have unsaved edits. Save or fix them; the workspace reloads after that.", "error");
+    }
+    account.current = k;
+  }, [status, reload, notify]);
+
+  const run = async (key: string, fn: () => Promise<CloudStatus>, ok?: string, reloadAfter = false) => {
+    setBusy(key); setErr(null);
+    try {
+      await fn(); await refreshCloud(); if (ok) notify(ok);
+      if (reloadAfter && cleanRef.current) reload();
+    } catch (e) { setErr(errMsg(e)); }
+    finally { setBusy(null); }
+  };
+  const logout = async () => {
+    setBusy("logout"); setErr(null);
+    try {
+      const synced = await syncDrive();
+      if (synced.pending || synced.state !== "synced") throw new Error(synced.message || "Sync did not finish, so nothing was deleted.");
+      await logoutCleanup(); await refreshCloud();
+      setConfirm(false); setAck(false); notify("Signed out. Cached account files were removed.");
+    } catch (e) { setErr(errMsg(e)); }
+    finally { setBusy(null); }
+  };
+  const cloudBusy = !!busy || !!status?.busy;
+
+  return (
+    <section className="panel panel-pad" data-testid="panel-cloud">
+      <div className="section-title"><h2><Cloud size={16} style={{ verticalAlign: "-2px" }} /> Account and Drive</h2>
+        {status ? <span className={`badge ${status.connected ? "good" : status.configured ? "warn" : "neutral"}`} data-testid="status-cloud">{status.connected ? "Connected" : status.configured ? "Not signed in" : "Not configured"}</span> : <span className="badge neutral">Checking…</span>}</div>
+      {!status && !err && <div className="skel" style={{ height: 80 }} />}
+      {status && <dl className="kv">
+        <dt>Account</dt><dd>{status.account ? <>{status.account.name}<br /><span className="muted mono" style={{ fontSize: 11 }}>{status.account.email}</span></> : "None"}</dd>
+        <dt>State</dt><dd>{cloudLabel(status).text}</dd>
+        <dt>Last sync</dt><dd>{status.lastSyncAt ? fmtTime(status.lastSyncAt) : "Never"}</dd>
+        <dt>Pending</dt><dd>{status.pending ? "Changes waiting to sync" : "Nothing pending"}</dd>
+      </dl>}
+      {status?.message && <div className="notice blue" style={{ marginTop: 10 }}><span>{status.message}</span></div>}
+      {(err || cloudError) && <div className="notice red" role="alert" style={{ marginTop: 10 }}><AlertTriangle size={14} /><span>{err || cloudError}</span></div>}
+      {!clean && <p className="hint">Save or fix your edits before connecting, syncing or signing out, so they stay with the right account.</p>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+        {desktop && <button className="btn" disabled={cloudBusy} onClick={() => void run("configure", configureGoogle, "Google desktop client loaded.")} data-testid="button-configure-google"><FileKey size={13} /> {busy === "configure" ? "Choosing file…" : "Load OAuth client JSON"}</button>}
+        {!status?.connected && <button className="btn primary" disabled={cloudBusy || !clean || (status ? !status.configured : true)} onClick={() => void run("connect", connectDrive, "Google Drive connected.", true)} data-testid="button-connect-drive"><LogIn size={13} /> {busy === "connect" ? "Waiting for browser sign-in…" : "Connect Google Drive"}</button>}
+        {status?.connected && status.state === "error" && <button className="btn" disabled={cloudBusy || !clean} onClick={() => void run("connect", connectDrive, "Google account reconnected.", true)} data-testid="button-reconnect-drive"><LogIn size={13} /> Reconnect same account</button>}
+        {status?.connected && <button className="btn" disabled={cloudBusy || !clean} onClick={() => void run("sync", syncDrive, "Sync finished.", true)} data-testid="button-sync-drive"><RefreshCw size={13} /> {busy === "sync" ? "Syncing…" : "Sync now"}</button>}
+        {status?.connected && <button className="btn danger" disabled={cloudBusy || !clean} onClick={() => setConfirm(true)} data-testid="button-logout-delete"><LogOut size={13} /> Log out and delete local files</button>}
+      </div>
+      {!desktop && <p className="hint" style={{ marginBottom: 0 }}>Google sign-in runs only in the installed desktop app. This preview never asks for credentials.</p>}
+      <Modal open={confirm} onClose={() => { if (!busy) { setConfirm(false); setAck(false); } }} title="Log out and delete local files?"
+        footer={<><button className="btn" disabled={!!busy} onClick={() => { setConfirm(false); setAck(false); }}>Cancel</button>
+          <button className="btn danger" disabled={!ack || !!busy} onClick={() => void logout()} data-testid="button-confirm-logout">{busy === "logout" ? "Syncing, then removing…" : "Sync, log out and delete"}</button></>}>
+        <div style={{ fontSize: 13, display: "grid", gap: 8 }}>
+          <p style={{ margin: 0 }}>First, everything is synced to Drive. Only if that sync succeeds, this deletes <b>only the app-managed cached workspace and generated files for {status?.account?.email ?? "the signed-in account"}</b> on this computer.</p>
+          <p style={{ margin: 0 }}>It does <b>not</b> delete: your files in Google Drive, original files you imported from elsewhere, copies you exported or saved outside the app, other unrelated files, or separate local-development drafts.</p>
+          <p style={{ margin: 0 }}>It does not sign you out of Google in your web browser.</p>
+        </div>
+        {err && <div className="notice red"><AlertTriangle size={14} /><span>{err}</span></div>}
+        <label className="required-toggle"><input type="checkbox" className="check" checked={ack} onChange={e => setAck(e.target.checked)} data-testid="check-logout-ack" /> I understand local files for this account will be deleted</label>
+      </Modal>
+    </section>
+  );
+}
+
+export function UpdatesPanel() {
+  const { runtime, isClean: clean } = useStore();
+  const [st, setSt] = useState<{ state: string; message?: string } | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const readyToRestart = !!st && /ready|downloaded/i.test(st.state);
+  const active = !!st && /check|download|available|progress/i.test(st.state) && !readyToRestart;
+  const check = async (quiet = false) => { if (!quiet) setBusy("check"); setErr(null); try { setSt(await checkUpdates()); } catch (e) { setErr(errMsg(e)); } finally { if (!quiet) setBusy(null); } };
+  useEffect(() => {
+    if (!active) return;
+    const t = window.setInterval(() => { if (document.visibilityState === "visible") void check(true); }, 4000);
+    return () => window.clearInterval(t);
+  }, [active]);
+  const restart = async () => { setBusy("restart"); setErr(null); try { await restartForUpdate(); } catch (e) { setErr(errMsg(e)); } finally { setBusy(null); } };
+  return (
+    <section className="panel panel-pad" style={{ gridColumn: "1 / -1" }}>
+      <div className="section-title"><h2>Updates</h2>{st && <span className={`badge ${readyToRestart ? "good" : "neutral"}`} data-testid="status-update">{st.state}</span>}</div>
+      <p className="hint" style={{ marginTop: 0 }}>Installed version {runtime?.version ?? "unknown"}. Updates install only when you restart.</p>
+      {st?.message && <div className="notice blue" style={{ marginBottom: 10 }}><span>{st.message}</span></div>}
+      {err && <div className="notice red" role="alert" style={{ marginBottom: 10 }}><AlertTriangle size={14} /><span>{err}</span></div>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button className="btn" disabled={!!busy} onClick={() => void check()} data-testid="button-check-updates"><RefreshCw size={13} /> {busy === "check" ? "Checking…" : "Check for updates"}</button>
+        {readyToRestart && <button className="btn primary" disabled={!!busy || !clean} onClick={() => void restart()} data-testid="button-restart-update"><RotateCcw size={13} /> {busy === "restart" ? "Restarting…" : "Restart to update"}</button>}
+      </div>
+      {readyToRestart && !clean && <p className="hint">Restart waits until unsaved or invalid edits are saved or fixed.</p>}
+    </section>
+  );
+}

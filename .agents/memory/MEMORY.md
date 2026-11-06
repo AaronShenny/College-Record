@@ -1,3 +1,4 @@
-- [Product scope and requirements process](requirements-process.md) — Windows record maker; desktop foundation now authorized; live Drive and document-engine integration are subsequent stages.
+- [Product scope and requirements process](requirements-process.md) — Full Windows record workflow and native Drive integration authorized; preserve explicit version-one exclusions.
 - [Approved Drive storage design](drive-storage-design.md) — Per-student JSON/files, stable IDs, local-first sync; one active computer in v1, conflicts deferred to v2.
 - [Desktop boundaries](desktop-boundaries.md) — Browser preview is development-only; native bridge failures must not redirect desktop saves into browser storage.
+- [Drive commit semantics](drive-commit-semantics.md) — Generated-file-only changes need distinct remote commits; publish references before index and acknowledge last.

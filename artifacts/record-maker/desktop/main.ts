@@ -4,12 +4,11 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { WorkspaceStore } from "./store";
-import { PythonWorker } from "./worker-client";
 import { workspaceSchema } from "../src/lib/contracts";
+import { NativeWorkflows } from "./native-workflows";
 
 let window: BrowserWindow | undefined;
-let worker: PythonWorker | undefined;
+let services: NativeWorkflows | undefined;
 app.setName("College Record Maker");
 const devUrl = process.env.RECORD_MAKER_DEV_URL;
 if (devUrl && !/^http:\/\/127\.0\.0\.1:5173\/?$/.test(devUrl)) throw new Error("Desktop development renderer must be the local dev server");
@@ -20,12 +19,10 @@ if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on("second-instance", () => { window?.restore(); window?.focus(); });
   app.whenReady().then(async () => {
-    const root = path.join(app.getPath("userData"), "workspaces", "local-development");
-    const store = new WorkspaceStore(root);
-    const workerArgs = ["--workspace-root", root];
-    worker = app.isPackaged
-      ? new PythonWorker(path.join(process.resourcesPath, "python", "record-maker-worker.exe"), workerArgs)
-      : new PythonWorker(process.env.RECORD_MAKER_PYTHON || (process.platform === "win32" ? "python" : "python3"), [path.join(app.getAppPath(), "python/worker.py"), ...workerArgs]);
+    services = new NativeWorkflows(app.getPath("userData"), () => window!);
+    await services.initialize();
+    let rendererRoot = services.root;
+    let rendererRevision: string | null = null;
     const handle = (name: string, handler: (...args: any[]) => unknown) => {
       ipcMain.handle(`record-maker:${name}`, async (event, ...args) => {
         if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame ||
@@ -37,17 +34,35 @@ else {
     };
     handle("runtime", () => ({
       mode: "desktop", version: app.getVersion(), platform: process.platform,
-      storageLabel: root, driveConnected: false, pythonAvailable: null,
+      storageLabel: services!.root, driveConnected: !!services!.account.identity, pythonAvailable: null,
+      requiresSignIn: app.isPackaged,
     }));
-    handle("load", () => store.load());
-    handle("save", input => store.save(workspaceSchema.parse(input)));
-    handle("python-health", () => worker!.request("health"));
+    handle("load", async () => {
+      const workspace = await services!.loadWorkspace();
+      rendererRoot = services!.root;
+      rendererRevision = (await services!.store.pointer())?.revisionId || null;
+      return workspace;
+    });
+    handle("save", async input => {
+      if (!services!.canWork) throw new Error("Sign in with your college Google account before saving record data.");
+      const store = services!.store;
+      if (services!.switching || rendererRoot !== services!.root) throw new Error("The account changed. Reload the correct workspace before saving; no old-account data was written into this account.");
+      const current = (await store.pointer())?.revisionId || null;
+      if (current !== rendererRevision) throw new Error("The workspace changed from Drive. Unsaved edits remain in this window; do not overwrite the downloaded workspace.");
+      const receipt = await store.save(workspaceSchema.parse(input));
+      rendererRevision = receipt.revisionId;
+      return receipt;
+    });
+    handle("workflow", (action, payload) => services!.run(z.string().max(80).parse(action), z.record(z.unknown()).parse(payload)));
+    handle("python-health", () => services!.worker.request("health"));
     handle("inspect", async (subjectId: unknown, programIds: unknown) => {
+      if (!services!.canWork) throw new Error("Sign in before accessing saved records.");
       const subject = z.string().uuid().parse(subjectId);
       const programs = z.array(z.string().uuid()).max(500).parse(programIds);
-      return store.withSnapshot(snapshotPath => worker!.request("snapshot-summary", { snapshotPath, subjectId: subject, programIds: programs }));
+      return services!.store.withSnapshot(snapshotPath => services!.worker.request("snapshot-summary", { snapshotPath, subjectId: subject, programIds: programs }));
     });
     handle("import-source", async () => {
+      if (!services!.canWork) throw new Error("Sign in before importing source files.");
       const selected = await dialog.showOpenDialog(window!, { title: "Import a source file (copy only)", properties: ["openFile"],
         filters: [{ name: "Source text", extensions: ["py", "java", "c", "h", "cpp", "hpp", "txt", "js", "ts", "sql"] }] });
       if (selected.canceled || !selected.filePaths[0]) return null;
@@ -55,9 +70,11 @@ else {
       const stat = await fs.stat(filename);
       if (!stat.isFile() || stat.size > 1_000_000) throw new Error("Source file must be a text file no larger than 1 MB");
       const code = new TextDecoder("utf-8", { fatal: true }).decode(await fs.readFile(filename));
+      if (code.includes("\x00")) throw new Error("Select a text source file, not binary content.");
       return { id: randomUUID(), name: path.basename(filename), role: "Main code", code, include: true };
     });
     handle("paste-image", async () => {
+      if (!services!.canWork) throw new Error("Sign in before reading the clipboard.");
       for (const item of await clipboard.read()) {
         const mime = (["image/png", "image/jpeg", "image/webp"] as const).find(type => item.types.includes(type));
         if (!mime) continue;
@@ -84,9 +101,19 @@ else {
         message: "Finish saving before closing", detail: "Use Save Now and resolve any save error. Pending Drive uploads can remain queued locally, but unsaved edits must be saved before closing.", buttons: ["Keep working"] });
     });
     window.once("ready-to-show", () => window?.show());
+    window.on("close", event => {
+      if (services?.documents.busy) {
+        event.preventDefault();
+        dialog.showMessageBoxSync(window!, { type: "info", title: "Document processing is running",
+          message: "Wait for document processing to finish before closing.", detail: "You can continue editing while it runs.", buttons: ["Keep working"] });
+      }
+    });
     window.on("closed", () => { window = undefined; });
     if (devUrl) await window.loadURL(devUrl); else await window.loadFile(entry);
   }).catch(error => { dialog.showErrorBox("College Record Maker could not start", String(error)); app.quit(); });
   app.on("window-all-closed", () => app.quit());
-  app.on("before-quit", () => worker?.stop());
+  app.on("before-quit", event => {
+    if (services?.documents.busy) { event.preventDefault(); window?.focus(); return; }
+    services?.worker.stop();
+  });
 }

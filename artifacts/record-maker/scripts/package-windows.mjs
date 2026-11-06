@@ -1,12 +1,21 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from "node:fs";
 import { build } from "electron-builder";
 
 if (process.platform !== "win32") {
   throw new Error("Build the Windows installer on Windows so the bundled Python helper is a Windows executable. Use the manual Windows CI workflow or follow DESKTOP.md.");
 }
 const root = path.resolve(import.meta.dirname, "..");
+const configDirectory = path.join(root, "dist/runtime-config");
+rmSync(configDirectory, { recursive: true, force: true });
+mkdirSync(configDirectory, { recursive: true });
+const feed = process.env.RECORD_MAKER_UPDATE_URL || null;
+const publisherNames = (process.env.RECORD_MAKER_PUBLISHER_NAME || "").split(";").map(s => s.trim()).filter(Boolean);
+if (feed && (new URL(feed).protocol !== "https:" || !publisherNames.length)) throw new Error("Updates require an HTTPS feed and signing-certificate publisher name.");
+writeFileSync(path.join(configDirectory, "release-config.json"), JSON.stringify({ feed, publisherNames }));
+if (process.env.GOOGLE_DESKTOP_CLIENT_JSON_PATH) copyFileSync(process.env.GOOGLE_DESKTOP_CLIENT_JSON_PATH, path.join(configDirectory, "google-client.json"));
+else if (process.env.GOOGLE_DESKTOP_CLIENT_JSON) writeFileSync(path.join(configDirectory, "google-client.json"), process.env.GOOGLE_DESKTOP_CLIENT_JSON, { mode: 0o600 });
 const run = (command, args) => {
   const result = spawnSync(command, args, { cwd: root, stdio: "inherit", shell: false });
   if (result.error) throw result.error;
@@ -17,6 +26,9 @@ run(process.env.RECORD_MAKER_PYTHON || "python", [
   "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--console",
   "--name", "record-maker-worker", "--distpath", "dist/python", "--workpath", "dist/pyinstaller",
   "--specpath", "dist", "python/worker.py",
+  "--add-data", `${path.resolve(root, "../../attached_assets/pdf_to_qns_1793905163999.py")};extractor`,
+  "--collect-data", "docx", "--collect-data", "docxcompose", "--collect-all", "pymupdf",
+  "--hidden-import", "win32com.client", "--hidden-import", "pythoncom", "--hidden-import", "win32timezone",
 ]);
 if (!existsSync(path.join(root, "dist/python/record-maker-worker.exe"))) throw new Error("Python worker packaging did not produce an executable");
 const smoke = spawnSync(path.join(root, "dist/python/record-maker-worker.exe"), ["--workspace-root", path.join(root, "dist/worker-smoke")], {
@@ -26,4 +38,7 @@ const smoke = spawnSync(path.join(root, "dist/python/record-maker-worker.exe"), 
 if (smoke.status !== 0 || !smoke.stdout) throw new Error("The bundled Python worker could not run on Windows");
 const response = JSON.parse(smoke.stdout.trim());
 if (response.ok !== true || response.result?.studentCodeExecution !== false) throw new Error("Bundled worker health check failed");
-await build({ projectDir: root, config: path.join(root, "electron-builder.yml") });
+await build({ projectDir: root, config: {
+  extends: path.join(root, "electron-builder.yml"),
+  ...(feed ? { publish: [{ provider: "generic", url: feed }], forceCodeSigning: true, win: { publisherName: publisherNames } } : {}),
+} });

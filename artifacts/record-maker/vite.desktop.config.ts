@@ -2,11 +2,13 @@ import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { processingPreview } from "./desktop/preview-plugin";
 
 export default defineConfig({
   root: import.meta.dirname,
   base: "./",
   plugins: [
+    processingPreview(),
     react(), tailwindcss(),
     {
       name: "desktop-content-security-policy",

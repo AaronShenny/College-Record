@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { bridge } from "@/lib/bridge";
+import { cloudStatus, generateDocuments, type CloudStatus, type GenerationResult } from "@/lib/workflow-api";
 import { workspaceSchema, type Program, type RuntimeInfo, type Subject, type Workspace } from "@/lib/contracts";
 
 export type SaveKind = "idle" | "dirty" | "saving" | "saved" | "error" | "invalid";
@@ -20,7 +21,24 @@ type Store = {
   dismiss: (id: number) => void;
   drafts: Set<string>;
   setDraft: (key: string, on: boolean) => void;
+  cloud: CloudStatus | null;
+  cloudError: string | null;
+  refreshCloud: () => Promise<CloudStatus | null>;
+  isClean: boolean;
+  gen: GenJob;
+  startGeneration: (subjectId: string, programIds: string[], mode: "individual" | "combined", pdf: boolean) => void;
+  docsVersion: number;
 };
+export type GenJob = { state: "idle" | "running" | "done" | "error"; subjectId?: string; count?: number; mode?: string; startedAt?: string; result?: GenerationResult; error?: string };
+export function cloudLabel(c: CloudStatus | null): { tone: "good" | "warn" | "alert" | "neutral"; text: string } {
+  if (!c) return { tone: "neutral", text: "Checking Drive…" };
+  if (!c.connected) return { tone: "neutral", text: c.configured ? "Drive not signed in" : "Drive not connected" };
+  if (c.state === "error") return { tone: "alert", text: "Drive sync error" };
+  if (c.state === "syncing" || c.busy) return { tone: "warn", text: "Syncing to Drive…" };
+  if (c.pending) return { tone: "warn", text: "Changes waiting to sync" };
+  if (c.state === "synced" && !c.pending) return { tone: "good", text: "Saved to Drive" };
+  return { tone: "warn", text: "Connected · not yet synced" };
+}
 
 const Ctx = createContext<Store | null>(null);
 export const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -43,6 +61,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const timer = useRef<number | undefined>(undefined);
   const lastSavedAt = useRef<string | undefined>(undefined);
   const statusRef = useRef<SaveKind>("idle");
+  const [rawCloud, setCloud] = useState<CloudStatus | null>(null);
+  const [cloudError, setCloudError] = useState<string | null>(null);
+  const [gen, setGen] = useState<GenJob>({ state: "idle" });
+  const [docsVersion, setDocsVersion] = useState(0);
+  const genRunning = useRef(false);
+  const [localRevision, setLocalRevision] = useState<string | null>(null);
   const draftsRef = useRef(drafts);
   draftsRef.current = drafts;
 
@@ -73,6 +97,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       // Older completions never move savedRev backwards.
       savedRev.current = Math.max(savedRev.current, target);
       lastSavedAt.current = receipt.savedAt;
+      setLocalRevision(receipt.revisionId);
       setStatus({ kind: rev.current === target ? "saved" : "dirty", savedAt: receipt.savedAt, storage: receipt.storage, pending: receipt.pendingItems });
     } catch (e) {
       failed = true;
@@ -105,19 +130,46 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setLoadError(null); setWorkspace(null);
     try {
       const w = await bridge.loadWorkspace();
-      latest.current = w; rev.current = 0; savedRev.current = 0;
+      latest.current = w; rev.current = 0; savedRev.current = 0; setLocalRevision(null);
       setWorkspace(w); setStatus({ kind: "idle" });
     } catch (e) { setLoadError(errMsg(e)); }
+    bridge.getRuntime().then(r => { setRuntime(r); setRuntimeError(null); }).catch(e => setRuntimeError(errMsg(e)));
   }, [setStatus]);
 
   useEffect(() => { void reload(); }, [reload]);
-  useEffect(() => {
-    bridge.getRuntime().then(setRuntime).catch(e => setRuntimeError(errMsg(e)));
+  const refreshCloud = useCallback(async () => {
+    try { const c = await cloudStatus(); setCloud(c); setCloudError(null); return c; }
+    catch (e) { setCloudError(errMsg(e)); return null; }
   }, []);
+  useEffect(() => {
+    void refreshCloud();
+    const t = window.setInterval(() => { if (document.visibilityState === "visible") void refreshCloud(); }, 4000);
+    return () => window.clearInterval(t);
+  }, [refreshCloud]);
+
+  const startGeneration = useCallback((subjectId: string, programIds: string[], mode: "individual" | "combined", pdf: boolean) => {
+    if (genRunning.current || !latest.current) return;
+    genRunning.current = true;
+    const snapshot = latest.current; // frozen at request time
+    setGen({ state: "running", subjectId, count: programIds.length, mode, startedAt: nowIso() });
+    generateDocuments(snapshot, subjectId, programIds, mode, pdf)
+      .then(result => {
+        setGen({ state: "done", subjectId, count: programIds.length, mode, result });
+        notify(result.failures.length ? `${result.documents.length} file(s) saved, ${result.failures.length} failure(s). See Documents.` : `${result.documents.length} file(s) generated.`, result.failures.length ? "error" : "info");
+      })
+      .catch(e => { setGen({ state: "error", subjectId, count: programIds.length, mode, error: errMsg(e) }); notify("Generation failed. See Documents.", "error"); })
+      .finally(() => { genRunning.current = false; setDocsVersion(v => v + 1); });
+  }, [notify]);
+  const isClean = (save.kind === "idle" || save.kind === "saved") && drafts.size === 0;
+  // Never trust a cached status over local knowledge: unsaved edits, or a saved
+  // revision Drive has not acknowledged, always mean pending.
+  const cloud: CloudStatus | null = rawCloud && rawCloud.connected
+    ? { ...rawCloud, pending: !!rawCloud.pending || !isClean || (localRevision !== null && localRevision !== (rawCloud as CloudStatus & { syncedRevision?: string }).syncedRevision) }
+    : rawCloud;
   useEffect(() => {
     const onBefore = (e: BeforeUnloadEvent) => {
       const k = statusRef.current;
-      if (k === "dirty" || k === "saving" || k === "error" || k === "invalid" || draftsRef.current.size > 0) {
+      if (k === "dirty" || k === "saving" || k === "error" || k === "invalid" || draftsRef.current.size > 0 || genRunning.current) {
         if (k === "dirty") void flush();
         e.preventDefault(); e.returnValue = "";
       }
@@ -133,7 +185,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  return <Ctx.Provider value={{ workspace, loadError, reload: () => void reload(), update, save, saveNow, runtime, runtimeError, toasts, notify, dismiss, drafts, setDraft }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ workspace, loadError, reload: () => void reload(), update, save, saveNow, runtime, runtimeError, toasts, notify, dismiss, drafts, setDraft, cloud, cloudError, refreshCloud, isClean, gen, startGeneration, docsVersion }}>{children}</Ctx.Provider>;
 }
 
 export function useStore() {
@@ -150,21 +202,47 @@ export const slug = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g,
 export const nextNumber = (s: Subject) => { const used = new Set(activePrograms(s).map(p => p.number)); let n = 1; while (used.has(n)) n++; return n; };
 export const initials = (name: string) => name.split(/\s+/).filter(w => /^[A-Za-z]/.test(w) && !/^(of|and|the|lab)$/i.test(w)).slice(0, 2).map(w => w[0]!.toUpperCase()).join("") || "S";
 
-export function programChecks(p: Program) {
-  const hasSource = p.sources.some(s => s.include && s.code.trim().length > 0);
+export function requiredMappings(s?: Subject): string[] {
+  const t = s?.template;
+  if (!t) return [];
+  return Object.values(t.mappings).filter(m => m.required && m.field !== "skip").map(m => m.field);
+}
+const filled = (v?: string) => !!v && v.trim().length > 0;
+export function programChecks(p: Program, s?: Subject) {
   const hasOutput = p.outputs.some(o => o.include);
+  const req = requiredMappings(s);
+  if (s?.template && Object.keys(s.template.mappings).length > 0) {
+    const checks: { label: string; ok: boolean }[] = [];
+    const seen = new Set<string>();
+    for (const f of req) {
+      if (seen.has(f)) continue; seen.add(f);
+      if (f === "title") checks.push({ label: "Title entered", ok: filled(p.title) });
+      else if (f === "question") checks.push({ label: "Question entered", ok: filled(p.question) });
+      else if (f === "output") checks.push({ label: "Included output", ok: hasOutput });
+      else if (f.startsWith("source:")) { const role = f.slice(7); checks.push({ label: `Source: ${role}`, ok: p.sources.some(x => x.include && x.role === role && x.code.trim().length > 0) }); }
+      else if (f.startsWith("custom:")) {
+        const def = s.fields?.find(d => d.id === f.slice(7));
+        if (def?.scope === "program") checks.push({ label: def.label, ok: filled(p.values?.[def.id]) });
+      }
+    }
+    if (checks.length) return checks;
+  }
   return [
-    { label: "Title entered", ok: p.title.trim().length > 0 },
-    { label: "Question entered", ok: p.question.trim().length > 0 },
-    { label: "Included source with code", ok: hasSource },
+    { label: "Title or question entered", ok: filled(p.title) || filled(p.question) },
+    { label: "Included source with code", ok: p.sources.some(x => x.include && x.code.trim().length > 0) },
     { label: "Included output", ok: hasOutput },
   ];
 }
-export function programState(p: Program): { tone: "good" | "warn" | "alert"; label: string; missing: string[] } {
-  const missing = programChecks(p).filter(c => !c.ok).map(c => c.label.toLowerCase());
+export function programState(p: Program, s?: Subject): { tone: "good" | "warn" | "alert"; label: string; missing: string[] } {
+  const checks = programChecks(p, s);
+  const missing = checks.filter(c => !c.ok).map(c => c.label.toLowerCase());
   if (missing.length === 0) return p.outputMayBeStale ? { tone: "warn", label: "Output may be outdated", missing } : { tone: "good", label: "Ready", missing };
-  if (missing.length >= 3) return { tone: "alert", label: "Just started", missing };
+  if (missing.length === checks.length) return { tone: "alert", label: "Just started", missing };
   return { tone: "warn", label: "Incomplete", missing };
+}
+export function blankProgram(number: number, title = "", question = ""): Program {
+  const t = nowIso();
+  return { id: newId(), number, title: title.slice(0, 500), question: question.slice(0, 100000), createdAt: t, updatedAt: t, trashedAt: null, sources: [], outputs: [], outputMayBeStale: false };
 }
 
 export function mapSubject(w: Workspace, id: string, fn: (s: Subject) => Subject): Workspace {

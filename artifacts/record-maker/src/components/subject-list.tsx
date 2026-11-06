@@ -28,7 +28,7 @@ export function SubjectList({ subjects, onNew }: { subjects: Subject[]; onNew: (
       {shown.length === 0 && <p className="hint" style={{ padding: "14px 8px" }}>No subjects match this search. Clear the filter to see all {subjects.length}.</p>}
       {shown.map((s, i) => {
         const progs = activePrograms(s);
-        const ready = progs.filter(p => programState(p).tone === "good").length;
+        const ready = progs.filter(p => programState(p, s).tone === "good").length;
         const tone = progs.length === 0 ? "neutral" : ready === progs.length ? "good" : "warn";
         return (
           <a className="subject-row" href={href(`/subject/${s.id}`)} key={s.id} data-testid={`link-subject-${s.id}`}>

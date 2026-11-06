@@ -3,16 +3,20 @@ import { AlertTriangle } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useHashRoute } from "@/components/kit";
 import { WorkspaceProvider, useStore } from "@/hooks/use-workspace";
+import { DesktopSignIn } from "@/components/desktop-sign-in";
 import Dashboard from "@/pages/dashboard";
 import SubjectPage from "@/pages/subject";
 import Editor from "@/pages/editor";
 import SettingsPage from "@/pages/settings";
 import TrashPage from "@/pages/trash";
 import DocumentsPage from "@/pages/documents";
+import TemplatePage from "@/pages/template";
+import ImportPage from "@/pages/import";
 
 function Routes() {
-  const { workspace, loadError, reload } = useStore();
+  const { workspace, loadError, reload, runtime, cloud } = useStore();
   const parts = useHashRoute();
+  if ((runtime as { requiresSignIn?: boolean } | null)?.requiresSignIn && (!cloud || !cloud.connected)) return <DesktopSignIn />;
   if (loadError) {
     return <div className="crm" style={{ display: "grid", placeItems: "center", padding: 24 }}>
       <div className="panel panel-pad" style={{ maxWidth: 480 }} role="alert">
@@ -36,7 +40,9 @@ function Routes() {
   else if (a === "program" && b && c) page = <Editor sid={b} pid={c} />;
   else if (a === "settings") page = <SettingsPage />;
   else if (a === "trash") page = <TrashPage />;
-  else if (a === "documents") page = <DocumentsPage />;
+  else if (a === "documents") page = <DocumentsPage sid={b} />;
+  else if (a === "template" && b) page = <TemplatePage sid={b} />;
+  else if (a === "import" && b) page = <ImportPage sid={b} />;
   else page = <Dashboard />;
   return <ErrorBoundary resetKey={parts.join("/")}>{page}</ErrorBoundary>;
 }

@@ -4,20 +4,20 @@ import { Shell } from "@/components/shell";
 import { EmptyState, PageHead, fmtTime, href } from "@/components/kit";
 import { SubjectDialog } from "@/components/dialogs";
 import { SubjectList } from "@/components/subject-list";
-import { activePrograms, activeSubjects, pad, programState, slug, useStore } from "@/hooks/use-workspace";
+import { cloudLabel, activePrograms, activeSubjects, pad, programState, slug, useStore } from "@/hooks/use-workspace";
 import { pendingItemCount } from "@/lib/contracts";
 
 export default function Dashboard({ subjectsOnly = false }: { subjectsOnly?: boolean }) {
-  const { workspace } = useStore();
+  const { workspace, cloud } = useStore();
   const [open, setOpen] = useState(false);
   const subjects = activeSubjects(workspace!);
-  const all = subjects.flatMap(s => activePrograms(s).map(p => ({ s, p, st: programState(p) })));
+  const all = subjects.flatMap(s => activePrograms(s).map(p => ({ s, p, st: programState(p, s) })));
   const ready = all.filter(x => x.st.tone === "good").length;
   const todo = all.filter(x => x.st.tone !== "good").sort((a, b) => b.p.updatedAt.localeCompare(a.p.updatedAt));
   const recent = [...all].sort((a, b) => b.p.updatedAt.localeCompare(a.p.updatedAt)).slice(0, 4);
   const focus = recent[0]?.s ?? [...subjects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   const focusProgs = focus ? activePrograms(focus) : [];
-  const focusReady = focusProgs.filter(p => programState(p).tone === "good").length;
+  const focusReady = focusProgs.filter(p => programState(p, focus).tone === "good").length;
   const newBtn = <button className="btn primary" onClick={() => setOpen(true)} data-testid="button-new-subject"><Plus size={14} /> New subject</button>;
 
   return (
@@ -68,7 +68,7 @@ export default function Dashboard({ subjectsOnly = false }: { subjectsOnly?: boo
                 </section>
                 <section className="panel offline-card">
                   <span className="offline-symbol"><CloudOff size={15} /></span>
-                  <div><h3>Local work only</h3><p>{pendingItemCount(workspace!)} item{pendingItemCount(workspace!) === 1 ? "" : "s"} are waiting for a future Drive sync. Google sign-in is not connected in this build.</p><a href={href("/settings")}>Review runtime and storage</a></div>
+                  <div><h3>{cloud?.connected ? cloudLabel(cloud).text : "Local work only"}</h3><p>{cloud?.connected ? `Signed in as ${cloud.account?.email ?? "your Google account"}. ${cloud.pending ? "Some changes are still waiting to sync." : cloud.lastSyncAt ? `Last sync ${new Date(cloud.lastSyncAt).toLocaleString()}.` : "No sync has completed yet."}` : `Not signed in. Your ${pendingItemCount(workspace!)} item(s) are stored on this device only; connect Drive in Settings to back them up.`}</p><a href={href("/settings")}>Review runtime and storage</a></div>
                 </section>
                 {recent[0] && <div className="path-note" data-num={pad(recent[0].p.number)}>
                   <div className="kicker">Last worked on · {fmtTime(recent[0].p.updatedAt)}</div>
@@ -81,7 +81,7 @@ export default function Dashboard({ subjectsOnly = false }: { subjectsOnly?: boo
             </div>
           </>
         )}
-        <div className="screen-footer"><span>Local foundation build · no code is ever executed</span><span>Sign-in and Drive sync are not connected</span></div>
+        <div className="screen-footer"><span>Your code is copied into records, never executed</span><span>{cloudLabel(cloud).text}</span></div>
       </div>
       <SubjectDialog open={open} onClose={() => setOpen(false)} />
     </Shell>

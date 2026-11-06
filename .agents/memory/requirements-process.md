@@ -331,7 +331,7 @@ Discuss the desktop application's features first and eventually create an SRS do
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
 
-**How to apply:** The user subsequently authorized screens, then explicitly selected “Start desktop implementation” after the foundation scope was described: Electron, React interface, local saving, Python job bridge, and Windows packaging configuration. This replaces the earlier screens-only hold for that foundation. Preserve the approved mockups. Live Google sign-in/Drive sync and integration of the checked document/extraction engines are subsequent stages, not already working features. Student-code execution remains out of version-one scope.
+**How to apply:** The user subsequently authorized screens, desktop foundation, and then explicitly selected “Complete the remaining workflow” after pointing out that template upload, mapping and Drive were pending. Full record-workflow, document/extraction-engine and native Google Drive integration implementation is now authorized; do not stop at the former foundation boundary. Preserve the approved mockups. Distinguish implemented code from live Google/Windows verification and required owner release configuration. Student-code execution remains out of version-one scope.
 
 Use the user's supplied `pdf_to_qns` script as the baseline for the future PDF question extractor.
 

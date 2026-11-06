@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import platform
 import sys
+import contextlib
 from pathlib import Path
 
 PROTOCOL = 1
@@ -22,6 +23,17 @@ def handle(request: dict, workspace_root: Path) -> dict:
     if action == "health":
         return {"protocol": PROTOCOL, "python": platform.python_version(), "status": "ready",
                 "capabilities": ["health", "snapshot-summary"], "studentCodeExecution": False}
+    if action == "workflow":
+        request_path = Path(params["requestPath"]).resolve()
+        if not request_path.is_relative_to(workspace_root.resolve() / "jobs") or request_path.stat().st_size > 260 * 1024 * 1024:
+            raise ValueError("Document request is outside the managed job workspace or exceeds its size limit")
+        job = json.loads(request_path.read_text(encoding="utf-8"))
+        with contextlib.redirect_stdout(sys.stderr):
+            from engine import handle as process_document
+            result = process_document(job["action"], job["payload"])
+        output = request_path.parent / "result.json"
+        output.write_text(json.dumps(result), encoding="utf-8")
+        return {"resultPath": str(output)}
     if action != "snapshot-summary":
         raise ValueError("This foundation worker does not support that operation")
     snapshot = Path(params["snapshotPath"]).resolve()

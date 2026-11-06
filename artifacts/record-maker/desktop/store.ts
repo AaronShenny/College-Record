@@ -1,10 +1,10 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { emptyWorkspace, workspaceSchema, type Workspace, type SaveReceipt } from "../src/lib/contracts";
 
 const UUID = /^[a-f0-9-]{36}$/;
-const MAX_WORKSPACE_BYTES = 40 * 1024 * 1024;
+const MAX_WORKSPACE_BYTES = 256 * 1024 * 1024;
 type Pointer = { revisionId: string; savedAt: string; pendingItems: number };
 type Ref = { id: string; path: string };
 export function resolveInside(root: string, relative: string): string {
@@ -51,9 +51,22 @@ export class WorkspaceStore {
       const subjects = [];
       for (const ref of app.subjects) {
         const stored = JSON.parse((await readManaged(root, ref.path)).toString("utf8"));
+        if (stored.template?.fileRef) {
+          const { fileRef, ...metadata } = stored.template;
+          stored.template = { ...metadata, dataBase64: (await readManaged(root, fileRef)).toString("base64") };
+        }
+        const hydrateValues = async (values: Record<string, any> | undefined) => {
+          if (!values) return undefined;
+          const result: Record<string, string> = {};
+          for (const [key, value] of Object.entries(values)) result[key] = typeof value === "string" ? value :
+            `data:${value.mime};base64,${(await readManaged(root, value.fileRef)).toString("base64")}`;
+          return result;
+        };
+        if (stored.values) stored.values = await hydrateValues(stored.values);
         const programs = [];
         for (const programRef of stored.programs as Ref[]) {
           const program = JSON.parse((await readManaged(root, programRef.path)).toString("utf8"));
+          if (program.values) program.values = await hydrateValues(program.values);
           const sources = [];
           for (const source of program.sources) {
             const { fileRef, ...metadata } = source;
@@ -78,7 +91,7 @@ export class WorkspaceStore {
   }
   save(input: Workspace): Promise<SaveReceipt> {
     const workspace = workspaceSchema.parse(input);
-    if (Buffer.byteLength(JSON.stringify(workspace)) > MAX_WORKSPACE_BYTES) return Promise.reject(new Error("This foundation workspace exceeds the 40 MB local-save limit."));
+    if (Buffer.byteLength(JSON.stringify(workspace)) > MAX_WORKSPACE_BYTES) return Promise.reject(new Error("This workspace exceeds the 256 MB local-save limit."));
     const operation = this.queue.then(() => this.commit(workspace));
     this.queue = operation.catch(() => undefined);
     return operation;
@@ -87,6 +100,27 @@ export class WorkspaceStore {
     await fs.mkdir(path.join(this.root, "snapshots"), { recursive: true });
     const revisionId = randomUUID();
     const root = path.join(this.root, "snapshots", revisionId);
+    const asset = async (relative: string, bytes: string | Buffer) => {
+      const hash = createHash("sha256").update(bytes).digest("hex");
+      const pooled = path.join(this.root, "_assets", hash);
+      try { await writeDurable(pooled, bytes); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
+      const target = resolveInside(root, relative);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      try { await fs.link(pooled, target); } catch { await fs.copyFile(pooled, target, fs.constants.COPYFILE_EXCL); }
+    };
+    const persistValues = async (values: Record<string, string> | undefined, folder: string) => {
+      if (!values) return undefined;
+      const stored: Record<string, any> = {};
+      for (const [key, value] of Object.entries(values)) {
+        if (value.startsWith("data:image/")) {
+          const mime = value.slice(5, value.indexOf(";"));
+          const fileRef = `${folder}/custom/${key}.${mime === "image/jpeg" ? "jpg" : mime === "image/webp" ? "webp" : "png"}`;
+          await asset(fileRef, Buffer.from(value.split(",")[1]!, "base64"));
+          stored[key] = { mime, fileRef };
+        } else stored[key] = value;
+      }
+      return stored;
+    };
     const subjectRefs: Ref[] = [];
     const pending: Array<{ id: string; kind: "subject" | "program"; operation: "upsert" | "trash" }> = [];
     for (const subject of workspace.subjects) {
@@ -108,7 +142,7 @@ export class WorkspaceStore {
           // ID-based disk names avoid Windows reserved names and duplicate filenames.
           const extension = path.extname(source.name).replace(/[^a-zA-Z0-9.]/g, "").slice(0, 12);
           const fileRef = `${programFolder}/sources/${source.id}${extension}`;
-          await writeDurable(resolveInside(root, fileRef), code);
+          await asset(fileRef, code);
           sources.push({ ...metadata, fileRef });
         }
         const outputs = [];
@@ -121,12 +155,20 @@ export class WorkspaceStore {
           if (image.length === 0 || image.length > 9 * 1024 * 1024) throw new Error("Output image is empty or larger than 9 MB");
           const extension = mime === "image/jpeg" ? "jpg" : mime === "image/webp" ? "webp" : "png";
           const fileRef = `${programFolder}/images/${item.id}.${extension}`;
-          await writeDurable(resolveInside(root, fileRef), image);
+          await asset(fileRef, image);
           outputs.push({ ...metadata, fileRef, mime });
         }
-        await writeDurable(resolveInside(root, programFile), json({ ...program, sources, outputs }));
+        await writeDurable(resolveInside(root, programFile), json({ ...program, sources, outputs, values: await persistValues(program.values, programFolder) }));
       }
-      await writeDurable(resolveInside(root, subjectFile), json({ ...subject, programs: programRefs }));
+      let template = subject.template;
+      let storedTemplate: any = template;
+      if (template) {
+        const { dataBase64, ...metadata } = template;
+        const fileRef = `${folder}/templates/${template.id}.docx`;
+        await asset(fileRef, Buffer.from(dataBase64, "base64"));
+        storedTemplate = { ...metadata, fileRef };
+      }
+      await writeDurable(resolveInside(root, subjectFile), json({ ...subject, programs: programRefs, template: storedTemplate, values: await persistValues(subject.values, folder) }));
     }
     await writeDurable(resolveInside(root, "app.json"), json({ schemaVersion: 1, subjects: subjectRefs }));
     await writeDurable(resolveInside(root, "_local/pending.json"), json({ driveConnected: false, items: pending }));
@@ -147,6 +189,13 @@ export class WorkspaceStore {
       if (UUID.test(entry) && entry !== current && !this.pinned.has(entry)) {
         await fs.rm(path.join(this.root, "snapshots", entry), { recursive: true, force: true }).catch(() => undefined);
       }
+    }
+    const pool = path.join(this.root, "_assets");
+    for (const name of await fs.readdir(pool).catch(() => [] as string[])) {
+      const filename = path.join(pool, name);
+      const stat = await fs.stat(filename).catch(() => null);
+      // At least one live or job-pinned snapshot hardlink protects each asset.
+      if (/^[a-f0-9]{64}$/.test(name) && stat?.nlink === 1) await fs.unlink(filename).catch(() => undefined);
     }
   }
   async snapshotPath(): Promise<string> {

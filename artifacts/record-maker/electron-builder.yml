@@ -8,6 +8,8 @@ files:
   - dist/renderer/**
   - package.json
 extraResources:
+  - from: dist/runtime-config
+    to: config
   - from: dist/python/record-maker-worker.exe
     to: python/record-maker-worker.exe
 asar: true

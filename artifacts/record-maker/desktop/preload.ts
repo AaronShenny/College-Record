@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopBridge } from "../src/lib/contracts";
 
 const bridge: DesktopBridge = {
+  workflow: (action, payload) => ipcRenderer.invoke("record-maker:workflow", action, payload),
   getRuntime: () => ipcRenderer.invoke("record-maker:runtime"),
   loadWorkspace: () => ipcRenderer.invoke("record-maker:load"),
   saveWorkspace: workspace => ipcRenderer.invoke("record-maker:save", workspace),

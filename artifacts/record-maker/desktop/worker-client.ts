@@ -41,7 +41,7 @@ export class PythonWorker {
     child.stdin.on("error", () => { if (this.child === child) this.stop("Could not send a job to the Python helper"); });
     child.on("exit", () => { if (this.child === child) this.stop("Python helper exited before completing its jobs."); });
   }
-  request(action: "health" | "snapshot-summary", params: Record<string, unknown> = {}): Promise<WorkerResult> {
+  request(action: "health" | "snapshot-summary" | "workflow", params: Record<string, unknown> = {}, timeoutMs = 30_000): Promise<WorkerResult> {
     const id = randomUUID();
     const line = JSON.stringify({ protocol: 1, id, action, params }) + "\n";
     if (Buffer.byteLength(line, "utf8") > 131_072) return Promise.reject(new Error("This Python job request is too large; no job was started"));
@@ -49,7 +49,7 @@ export class PythonWorker {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.stop("Python helper did not respond within 30 seconds. The job was stopped; your saved workspace is unchanged.");
-      }, 30_000);
+      }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       this.child!.stdin.write(line, (error) => {
         if (error) this.stop("Could not send a job to the Python helper");

@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { AlertTriangle, BookOpen, CircleSlash, FileText, Home, Settings, Trash2, X } from "lucide-react";
-import { useStore } from "@/hooks/use-workspace";
+import { cloudLabel, useStore } from "@/hooks/use-workspace";
 import { fmtTime, href } from "./kit";
 
 const NAV = [
@@ -27,7 +27,7 @@ export function SaveIndicator() {
 }
 
 export function Shell({ active, crumb, children }: { active: string; crumb: string; children: ReactNode }) {
-  const { runtime, save, saveNow, toasts, dismiss } = useStore();
+  const { runtime, save, saveNow, toasts, dismiss, cloud, cloudError } = useStore();
   const items = (list: typeof NAV) => list.map(n => (
     <a key={n.key} href={href(n.path)} className={`nav-item ${active === n.key ? "active" : ""}`} aria-current={active === n.key ? "page" : undefined} data-testid={`link-nav-${n.key}`}>
       <n.icon size={16} aria-hidden="true" /><span>{n.label}</span>
@@ -44,7 +44,7 @@ export function Shell({ active, crumb, children }: { active: string; crumb: stri
           <div><div className="nav-label">Workspace</div><nav className="nav-list" aria-label="Main navigation">{items(NAV)}</nav></div>
           <div><div className="nav-label">Preferences</div><nav className="nav-list" aria-label="Preferences">{items(PREFS)}</nav></div>
           <div className="sidebar-bottom">
-            <div className="local-mini"><b>Local workspace</b>Not a Google account. Sign-in and Drive sync arrive in a later milestone.</div>
+            <div className="local-mini" data-testid="text-account-mini"><b>{cloud?.connected && cloud.account ? cloud.account.name : "Local workspace"}</b>{cloud?.connected && cloud.account ? <>{cloud.account.email}<br />{cloudLabel(cloud).text}{cloud.lastSyncAt ? ` · last sync ${fmtTime(cloud.lastSyncAt)}` : ""}</> : "Not signed in. Work is kept on this device only."}</div>
           </div>
         </aside>
         <main className="main">
@@ -53,13 +53,13 @@ export function Shell({ active, crumb, children }: { active: string; crumb: stri
             <div className="crumb">College Record Maker <span aria-hidden="true">/</span> <strong>{crumb}</strong></div>
             <div className="top-right">
               <SaveIndicator />
-              <span><CircleSlash size={11} style={{ verticalAlign: "-1px", marginRight: 5 }} aria-hidden="true" />Drive not connected</span>
+              <span data-testid="status-drive" className={`drive-${cloudLabel(cloud).tone}`}><CircleSlash size={11} style={{ verticalAlign: "-1px", marginRight: 5 }} aria-hidden="true" />{cloudError ? "Drive status unavailable" : cloudLabel(cloud).text}</span>
             </div>
           </div>
           {runtime?.mode === "browser-preview" && (
             <div className="preview-banner" role="note" data-testid="banner-preview">
               <AlertTriangle size={14} aria-hidden="true" />
-              <span><b>Development preview.</b> Your work is stored only in this browser. Native Windows files and the Python helper require the installed desktop app.</span>
+              <span><b>Development preview.</b> Your work is stored only in this browser. Real local Python processing for DOCX generation and PDF/CSV import runs through the dev server; native Windows Word PDF conversion and Google sign-in need the installed desktop app.</span>
             </div>
           )}
           {(save.kind === "error" || save.kind === "invalid") && (

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { AlertTriangle, Cpu, Info, Lock, Play, Search } from "lucide-react";
+import { AlertTriangle, Cpu, Play, Search } from "lucide-react";
+import { CloudPanel, UpdatesPanel } from "@/components/cloud-panel";
 import { Shell } from "@/components/shell";
 import { PageHead } from "@/components/kit";
 import { bridge } from "@/lib/bridge";
@@ -48,19 +49,12 @@ export default function SettingsPage() {
                 <dt>Storage</dt><dd>{runtime.storageLabel}</dd>
                 <dt>Python helper</dt><dd>{runtime.pythonAvailable === null ? "Unknown until checked" : runtime.pythonAvailable ? "Available" : "Not available"}</dd>
                 <dt>Last local save</dt><dd>{save.savedAt ? new Date(save.savedAt).toLocaleString() : "Not saved in this session"}</dd>
-                <dt>Pending sync items</dt><dd>{pendingItemCount(workspace!)} (held locally until Drive sync exists)</dd>
+                <dt>Pending sync items</dt><dd>{pendingItemCount(workspace!)} item(s) tracked locally</dd>
               </dl>
             )}
           </section>
 
-          <section className="panel panel-pad">
-            <div className="section-title"><h2>Account and Drive</h2><span className="badge neutral">Not connected</span></div>
-            <div className="notice blue"><Info size={14} /><span>Google sign-in and Drive sync are not part of this build. You are using a local workspace that is not tied to any Google or college account. All edits stay pending locally.</span></div>
-            <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
-              <button className="btn" disabled aria-describedby="logout-why" data-testid="button-logout-delete"><Lock size={13} /> Log out and delete local files</button>
-              <p id="logout-why" className="hint" style={{ margin: 0 }}>Blocked: your {pendingItemCount(workspace!)} local item(s) have never been synced to Drive. Deleting local files now would lose your work, so this stays disabled until Drive sync is available.</p>
-            </div>
-          </section>
+          <CloudPanel />
 
           <section className="panel panel-pad">
             <div className="section-title"><h2><Cpu size={16} style={{ verticalAlign: "-2px" }} /> Python helper</h2></div>
@@ -88,10 +82,7 @@ export default function SettingsPage() {
             <div style={{ marginTop: 12 }}><JobView job={snap} idleText="No inspection run yet." /></div>
           </section>
 
-          <section className="panel panel-pad" style={{ gridColumn: "1 / -1" }}>
-            <div className="section-title"><h2>Updates</h2><span className="badge neutral">Later milestone</span></div>
-            <p className="hint" style={{ margin: 0 }}>This build does not check for or install updates. Version {runtime?.version ?? "unknown"} stays as installed.</p>
-          </section>
+          <UpdatesPanel />
         </div>
       </div>
     </Shell>
