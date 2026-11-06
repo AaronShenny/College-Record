@@ -15,6 +15,12 @@ The intended audience is “Anyone at my college,” not only the creator or the
 
 **How to apply:** Discuss student data ownership, shared resources, and access permissions before finalizing the SRS. Do not assume that college-wide use implies college administration or a central Drive.
 
+Support use on both personal computers and shared college computers.
+
+**Why:** The user selected “Both” when asked which kinds of computers students would use.
+
+**How to apply:** Do not assume each Windows installation belongs exclusively to one student. Account separation, remembered sign-in, and local-cache cleanup need a design suitable for shared use. Specific personal/shared modes and sign-out cleanup behavior have not yet been approved. The one-active-computer-per-student version-one boundary remains unchanged.
+
 Each student's records should be stored in that student's own Google Drive.
 
 **Why:** The user explicitly chose “Each student’s own Drive” over shared-template storage or one central college Drive.
