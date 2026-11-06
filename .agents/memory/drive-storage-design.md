@@ -61,7 +61,13 @@ Use a Git-like synchronization approach.
 
 **How to apply:** Discuss revision-based synchronization and conflict review as the new direction. The user has not yet specified actual Git storage, manual commits, full history, branches, automatic merging, or the exact replacement for latest-save-wins. Preserve Drive as the persistent store; do not install or initialize Git infrastructure for app data during discussion. The prior no-conflict-copy choice has not yet been explicitly reversed.
 
-Still unresolved: PDF and older-template retention, automatic Trash expiry, exact Git-like sync behavior, whether to add version history, and deletion-versus-edit conflicts.
+Defer conflict handling to version 2.
+
+**Why:** The user explicitly stated “We will handle conflicts later in 2nd version.”
+
+**How to apply:** Keep conflict-resolution UI, merging, and the Git-like conflict-handling design out of version 1. Do not continue requesting decisions about those deferred details unless the user reopens them. Ordinary Drive saving and offline work remain requirements; the supported first-version device-use limits still need agreement. Do not silently promise safe concurrent multi-device editing or invent a replacement overwrite policy.
+
+Still unresolved: PDF and older-template retention, automatic Trash expiry, and first-version device-use limits. Exact Git-like conflict behavior, history, and deletion-versus-edit resolution are deferred to version 2.
 
 **Why:** These items were expressly left open in the accepted proposal; approving the structure did not resolve them.
 
