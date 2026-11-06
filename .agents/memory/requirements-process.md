@@ -338,3 +338,9 @@ Use background update checks and automatic downloads, then offer “Restart now�
 **Why:** The user selected “Use this update flow” after reviewing the proposed behavior.
 
 **How to apply:** Update the interface and bundled Python helper together. Never restart during editing, extraction, or document generation. Finish local saving and preserve queued Drive uploads before restart; do not require Drive sync to complete first. Choosing Later leaves the current app usable, including offline. Update-service failure must not interrupt normal work. Release hosting, Windows signing, and failed-install recovery remain technical design decisions.
+
+The first release must support Windows 10 and Windows 11.
+
+**Why:** The user selected “Windows 10 and 11” as the first-release compatibility target.
+
+**How to apply:** Include both Windows versions in packaging and compatibility testing. Minimum supported builds and processor architectures remain unspecified; do not silently narrow support to Windows 11.
