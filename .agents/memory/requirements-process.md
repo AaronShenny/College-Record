@@ -331,4 +331,10 @@ Version 1 must support automatic application updates.
 
 **Why:** The user explicitly selected “Automatic updates” rather than manual installer updates.
 
-**How to apply:** Include an automatic updater in the future desktop application scope. Download/install timing, user restart consent, release hosting, and signing remain proposals to discuss; selecting automatic updates does not approve those details or authorize implementation.
+**How to apply:** Include an automatic updater in the future desktop application scope. This choice does not authorize implementation.
+
+Use background update checks and automatic downloads, then offer “Restart now” or “Later” to install a verified update.
+
+**Why:** The user selected “Use this update flow” after reviewing the proposed behavior.
+
+**How to apply:** Update the interface and bundled Python helper together. Never restart during editing, extraction, or document generation. Finish local saving and preserve queued Drive uploads before restart; do not require Drive sync to complete first. Choosing Later leaves the current app usable, including offline. Update-service failure must not interrupt normal work. Release hosting, Windows signing, and failed-install recovery remain technical design decisions.
