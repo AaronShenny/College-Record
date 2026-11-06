@@ -350,3 +350,9 @@ Students can keep editing while documents generate, with each generation using a
 **Why:** The user selected “Keep editing during generation” after reviewing snapshot-based background generation.
 
 **How to apply:** Capture the selected program content, source/output assets, template, and mappings consistently for the job after local save and validation. Later edits must not alter the running generation. Indicate when newer edits require regeneration; do not freeze editing for the duration of document jobs. This decision does not authorize application implementation.
+
+Continue generating the remaining individual program documents if one unexpectedly fails.
+
+**Why:** The user selected “Continue remaining programs” after reviewing batch-generation error behavior.
+
+**How to apply:** Preserve successful completed files, identify failed programs and their errors in the result summary, and allow retrying failed items without regenerating successful ones. Required-field validation still happens before generation; this does not allow bypassing missing required content or silently omitting a selected program from a combined record.
