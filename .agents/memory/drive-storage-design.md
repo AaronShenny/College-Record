@@ -65,9 +65,15 @@ Defer conflict handling to version 2.
 
 **Why:** The user explicitly stated “We will handle conflicts later in 2nd version.”
 
-**How to apply:** Keep conflict-resolution UI, merging, and the Git-like conflict-handling design out of version 1. Do not continue requesting decisions about those deferred details unless the user reopens them. Ordinary Drive saving and offline work remain requirements; the supported first-version device-use limits still need agreement. Do not silently promise safe concurrent multi-device editing or invent a replacement overwrite policy.
+**How to apply:** Keep conflict-resolution UI, merging, and the Git-like conflict-handling design out of version 1. Do not continue requesting decisions about those deferred details unless the user reopens them. Ordinary Drive saving and offline work remain requirements. Do not silently promise safe concurrent multi-device editing or invent a replacement overwrite policy.
 
-Still unresolved: PDF and older-template retention, automatic Trash expiry, and first-version device-use limits. Exact Git-like conflict behavior, history, and deletion-versus-edit resolution are deferred to version 2.
+Version 1 assumes one active computer per student at a time. Switching computers is supported after finishing sync and closing the app on the first computer. Offline editing on multiple computers at once is outside the supported workflow.
+
+**Why:** The user selected “Yes, one active computer” after reviewing this proposed first-version usage limit.
+
+**How to apply:** Use this as a supported-usage boundary, not a claim of an implemented cross-device lock or a guarantee that conflicts are impossible. Do not build device locking or promise concurrent editing without separate agreement.
+
+Still unresolved: PDF and older-template retention and automatic Trash expiry. Exact Git-like conflict behavior, history, and deletion-versus-edit resolution are deferred to version 2.
 
 **Why:** These items were expressly left open in the accepted proposal; approving the structure did not resolve them.
 
