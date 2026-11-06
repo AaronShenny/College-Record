@@ -57,3 +57,7 @@ Thumbs.db
 __pycache__/
 *.pyc
 .pythonlibs/
+
+# Required runtime source: include the approved PDF extractor in fresh checkouts.
+# Override the environment's global attached_assets/* ignore for this file only.
+!/attached_assets/pdf_to_qns_1793905163999.py

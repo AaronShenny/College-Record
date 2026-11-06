@@ -24,3 +24,12 @@ asynchronous API; familiar older snippets failed against the actual dependency.
 
 **How to apply:** Check the installed API surface before adding clipboard and
 other native handlers, and include the main/preload code in typechecking.
+
+Required uploaded runtime sources must be explicitly included in Git; local
+file existence alone does not prove that a clean Windows CI checkout has them.
+
+**Why:** This environment globally ignores uploaded assets, which can leave
+local extraction tests passing while GitHub builds fail on a missing script.
+
+**How to apply:** When adopting uploaded code as a runtime dependency, check
+Git inclusion and narrowly exempt only that required source, not all uploads.
