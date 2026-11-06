@@ -344,3 +344,9 @@ The first release must support Windows 10 and Windows 11.
 **Why:** The user selected “Windows 10 and 11” as the first-release compatibility target.
 
 **How to apply:** Include both Windows versions in packaging and compatibility testing. Minimum supported builds and processor architectures remain unspecified; do not silently narrow support to Windows 11.
+
+Students can keep editing while documents generate, with each generation using a fixed snapshot.
+
+**Why:** The user selected “Keep editing during generation” after reviewing snapshot-based background generation.
+
+**How to apply:** Capture the selected program content, source/output assets, template, and mappings consistently for the job after local save and validation. Later edits must not alter the running generation. Indicate when newer edits require regeneration; do not freeze editing for the duration of document jobs. This decision does not authorize application implementation.
