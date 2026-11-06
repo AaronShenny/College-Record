@@ -31,7 +31,7 @@ def add_inline(paragraph, text):
             run.font.size = Pt(9)
 
 
-def configure(document):
+def configure(document, version):
     section = document.sections[0]
     section.page_width = Inches(8.27)
     section.page_height = Inches(11.69)
@@ -50,7 +50,7 @@ def configure(document):
     header.text = "COLLEGE WORD RECORD MAKER  |  REQUIREMENTS"
     header.style = document.styles["Caption"]
     footer = section.footer.paragraphs[0]
-    footer.add_run("SRS v0.1 • Draft for review   |   Page ")
+    footer.add_run(f"SRS {version}   |   Page ")
     field = OxmlElement("w:fldSimple")
     field.set(qn("w:instr"), "PAGE")
     footer._p.append(field)
@@ -82,9 +82,17 @@ def add_table(document, rows):
 
 
 def main():
-    document = Document()
-    configure(document)
     lines = SOURCE.read_text(encoding="utf-8").splitlines()
+    version_line = next(
+        (line for line in lines if line.startswith("**Version:** ")),
+        None,
+    )
+    if version_line is None:
+        raise ValueError("SRS source is missing its version declaration")
+    version = version_line.removeprefix("**Version:** ").strip()
+
+    document = Document()
+    configure(document, version)
     index = 0
     while index < len(lines):
         line = lines[index].strip()
