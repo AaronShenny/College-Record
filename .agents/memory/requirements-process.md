@@ -19,7 +19,13 @@ Support use on both personal computers and shared college computers.
 
 **Why:** The user selected “Both” when asked which kinds of computers students would use.
 
-**How to apply:** Do not assume each Windows installation belongs exclusively to one student. Account separation, remembered sign-in, and local-cache cleanup need a design suitable for shared use. Specific personal/shared modes and sign-out cleanup behavior have not yet been approved. The one-active-computer-per-student version-one boundary remains unchanged.
+**How to apply:** Do not assume each Windows installation belongs exclusively to one student. Account separation and local-cache handling need a design suitable for shared use. The user subsequently requested background downloads and an explicit logout-and-delete option, rather than selecting the proposed personal/shared modes. The one-active-computer-per-student version-one boundary remains unchanged.
+
+On sign-in, download all workspace files locally in the background and offer an option to log out and delete local files.
+
+**Why:** The user said “When students sign in, the system downloads all the files from the drive locally in background. And an option to logout and delete all the files from the system.”
+
+**How to apply:** Treat background downloading and an explicit logout-and-local-cleanup action as requested behavior, not merely on-demand caching. The working interpretation is the student's app workspace and app-managed local copies, not unrelated Drive or computer files; this scope was stated to the user but has not yet been explicitly confirmed. Do not infer authorization for broad filesystem deletion, deletion of Drive originals, or automatic loss of unsynced edits. Handling pending uploads during cleanup still needs a decision. No application implementation was authorized.
 
 Each student's records should be stored in that student's own Google Drive.
 
