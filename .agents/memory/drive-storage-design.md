@@ -41,13 +41,13 @@ Drive is the source of truth.
 
 **Why:** During discussion of deletion conflicts, the user explicitly said “Source of truth would be drive.”
 
-**How to apply:** Treat Drive as authoritative persistent storage and local files as cached working data with pending edits. Whether this replaces latest-save-wins for all conflicts, or only establishes deletion precedence, still needs clarification; do not infer either change from this statement alone.
+**How to apply:** Treat Drive as authoritative persistent storage and local files as cached working data with pending edits. The user subsequently requested synchronization “similar to git”; the specific revision, conflict-resolution, and history behavior still needs agreement.
 
 Handle conflicts independently per program and separately for subject settings. Each winning program version includes its fields, source-file references, and ordered output items as a consistent unit; do not merge fields from competing versions. Edits to different programs can both survive synchronization. Generated Word versions remain separate additions.
 
 **Why:** The user selected “Separate programs and subject settings” after reviewing this conflict-granularity proposal.
 
-**How to apply:** Apply most-recently-saved-wins within each saved item, not to an entire subject because one program changed. Do not substitute most-recently-uploaded-wins.
+**How to apply:** Preserve per-item conflict granularity, not whole-subject replacement. Most-recently-saved-wins was the earlier rule, but the user subsequently requested behavior “similar to git”; do not assume automatic overwrite is the final policy while that replacement is being discussed. Do not substitute most-recently-uploaded-wins.
 
 Do not retain recoverable copies of overwritten conflict versions.
 
@@ -55,7 +55,13 @@ Do not retain recoverable copies of overwritten conflict versions.
 
 **How to apply:** Keep only the winning active program or subject-settings version through conflict resolution; do not add a conflict-copy archive. This does not change retained generated Word versions or recoverable deleted-item Trash. It does not authorize deleting existing data during architecture discussion.
 
-Still unresolved: PDF and older-template retention, automatic Trash expiry, trusted save timestamps, equal-time handling, and deletion-versus-edit conflicts.
+Use a Git-like synchronization approach.
+
+**Why:** When asked how concurrent local and Drive changes should be handled, the user said “Let's go with smthing similar to git.”
+
+**How to apply:** Discuss revision-based synchronization and conflict review as the new direction. The user has not yet specified actual Git storage, manual commits, full history, branches, automatic merging, or the exact replacement for latest-save-wins. Preserve Drive as the persistent store; do not install or initialize Git infrastructure for app data during discussion. The prior no-conflict-copy choice has not yet been explicitly reversed.
+
+Still unresolved: PDF and older-template retention, automatic Trash expiry, exact Git-like sync behavior, whether to add version history, and deletion-versus-edit conflicts.
 
 **Why:** These items were expressly left open in the accepted proposal; approving the structure did not resolve them.
 
