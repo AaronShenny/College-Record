@@ -37,6 +37,12 @@ College Record Maker/
 - Credentials never belong in synced metadata or Drive documents; use secure Windows credential storage.
 - Keep account-separated local working files and a pending sync queue. Save locally first, distinguish local and Drive status, and upload referenced assets before metadata that publishes their references. Recover interrupted multi-file sync rather than assume Drive has group transactions.
 
+Drive is the source of truth.
+
+**Why:** During discussion of deletion conflicts, the user explicitly said “Source of truth would be drive.”
+
+**How to apply:** Treat Drive as authoritative persistent storage and local files as cached working data with pending edits. Whether this replaces latest-save-wins for all conflicts, or only establishes deletion precedence, still needs clarification; do not infer either change from this statement alone.
+
 Handle conflicts independently per program and separately for subject settings. Each winning program version includes its fields, source-file references, and ordered output items as a consistent unit; do not merge fields from competing versions. Edits to different programs can both survive synchronization. Generated Word versions remain separate additions.
 
 **Why:** The user selected “Separate programs and subject settings” after reviewing this conflict-granularity proposal.
