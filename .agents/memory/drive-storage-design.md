@@ -43,7 +43,13 @@ Handle conflicts independently per program and separately for subject settings. 
 
 **How to apply:** Apply most-recently-saved-wins within each saved item, not to an entire subject because one program changed. Do not substitute most-recently-uploaded-wins.
 
-Still unresolved: PDF and older-template retention, automatic Trash expiry, trusted save timestamps, equal-time handling, deletion-versus-edit conflicts, and retention of overwritten conflict versions.
+Do not retain recoverable copies of overwritten conflict versions.
+
+**Why:** The user explicitly selected “Do not keep conflict copies” after being told that overwritten edits would not be recoverable through that feature.
+
+**How to apply:** Keep only the winning active program or subject-settings version through conflict resolution; do not add a conflict-copy archive. This does not change retained generated Word versions or recoverable deleted-item Trash. It does not authorize deleting existing data during architecture discussion.
+
+Still unresolved: PDF and older-template retention, automatic Trash expiry, trusted save timestamps, equal-time handling, and deletion-versus-edit conflicts.
 
 **Why:** These items were expressly left open in the accepted proposal; approving the structure did not resolve them.
 
