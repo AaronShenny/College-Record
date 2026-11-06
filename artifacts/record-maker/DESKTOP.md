@@ -18,6 +18,8 @@ Before college-wide use, the application owner must create a Google OAuth **Desk
 
 The Agent's connected Google Drive integration is not this student-facing OAuth registration and cannot substitute for it. A Replit workspace secret also does not automatically create a GitHub Actions secret: configure the Windows runner separately if using that workflow.
 
+Check registration format without printing it using `node artifacts/record-maker/scripts/check-google-config.mjs`. Native development reads the same environment registration when no encrypted client is already configured; packaged apps read only their bundled registration. Both reject incomplete/non-Desktop credentials with generic, non-echoing errors. Format validation does not verify consent, API enablement or live login.
+
 For signed updates, supply HTTPS `RECORD_MAKER_UPDATE_URL`, exact certificate publisher name(s) in `RECORD_MAKER_PUBLISHER_NAME` (semicolon-separated), and electron-builder's signing credentials (`CSC_LINK`, `CSC_KEY_PASSWORD`) on the packaging runner. Update-enabled builds fail if unsigned. Host the generated installer, `.blockmap` and `latest.yml` on that feed. Downloads are automatic, installation requires Restart Now, and an app/Python update is packaged together. Local saves finish first; active extraction/generation blocks restart; in-flight sync is paused safely and pending uploads remain queued. Without signing/feed configuration the app says updates are unconfigured and does not install unsigned code.
 
 ### Verification and release limits

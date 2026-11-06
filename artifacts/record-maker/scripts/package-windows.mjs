@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { existsSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { build } from "electron-builder";
+import { parseDesktopRegistration } from "../desktop/google-registration.mjs";
 
 if (process.platform !== "win32") {
   throw new Error("Build the Windows installer on Windows so the bundled Python helper is a Windows executable. Use the manual Windows CI workflow or follow DESKTOP.md.");
@@ -14,8 +15,10 @@ const feed = process.env.RECORD_MAKER_UPDATE_URL || null;
 const publisherNames = (process.env.RECORD_MAKER_PUBLISHER_NAME || "").split(";").map(s => s.trim()).filter(Boolean);
 if (feed && (new URL(feed).protocol !== "https:" || !publisherNames.length)) throw new Error("Updates require an HTTPS feed and signing-certificate publisher name.");
 writeFileSync(path.join(configDirectory, "release-config.json"), JSON.stringify({ feed, publisherNames }));
-if (process.env.GOOGLE_DESKTOP_CLIENT_JSON_PATH) copyFileSync(process.env.GOOGLE_DESKTOP_CLIENT_JSON_PATH, path.join(configDirectory, "google-client.json"));
-else if (process.env.GOOGLE_DESKTOP_CLIENT_JSON) writeFileSync(path.join(configDirectory, "google-client.json"), process.env.GOOGLE_DESKTOP_CLIENT_JSON, { mode: 0o600 });
+const registration = process.env.GOOGLE_DESKTOP_CLIENT_JSON_PATH
+  ? readFileSync(process.env.GOOGLE_DESKTOP_CLIENT_JSON_PATH, "utf8")
+  : process.env.GOOGLE_DESKTOP_CLIENT_JSON;
+if (registration) writeFileSync(path.join(configDirectory, "google-client.json"), JSON.stringify(parseDesktopRegistration(registration)), { mode: 0o600 });
 const run = (command, args) => {
   const result = spawnSync(command, args, { cwd: root, stdio: "inherit", shell: false });
   if (result.error) throw result.error;

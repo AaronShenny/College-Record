@@ -9,6 +9,7 @@ import { WorkspaceStore } from "./store";
 import { PythonWorker } from "./worker-client";
 import { DocumentService } from "./processing";
 import { Updates } from "./updates";
+import { parseDesktopRegistration } from "./google-registration.mjs";
 
 export class NativeWorkflows {
   root: string;
@@ -41,10 +42,14 @@ export class NativeWorkflows {
   }
   async initialize() {
     await this.account.initialize();
-    if (app.isPackaged && !this.account.configured) {
+    if (!this.account.configured) {
       try {
-        const registration = await fs.readFile(path.join(process.resourcesPath, "config/google-client.json"), "utf8");
-        await this.account.configure(JSON.parse(registration));
+        const registration = app.isPackaged
+          ? await fs.readFile(path.join(process.resourcesPath, "config/google-client.json"), "utf8")
+          : process.env.GOOGLE_DESKTOP_CLIENT_JSON_PATH
+            ? await fs.readFile(process.env.GOOGLE_DESKTOP_CLIENT_JSON_PATH, "utf8")
+            : process.env.GOOGLE_DESKTOP_CLIENT_JSON;
+        if (registration) await this.account.configure(parseDesktopRegistration(registration));
       } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     }
     if (this.account.key) this.activate(path.join(this.directory, "workspaces", `account-${this.account.key}`));
@@ -85,7 +90,7 @@ export class NativeWorkflows {
       if (!selected.canceled && selected.filePaths[0]) {
         const file = selected.filePaths[0];
         if ((await fs.stat(file)).size > 32_000) throw new Error("Google client configuration file is unexpectedly large.");
-        await this.account.configure(JSON.parse(await fs.readFile(file, "utf8")));
+        await this.account.configure(parseDesktopRegistration(await fs.readFile(file, "utf8")));
       }
       return this.sync.status();
     }

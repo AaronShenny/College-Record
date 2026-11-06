@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { randomBytes, createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { desktopRegistration } from "./google-registration.mjs";
 
 type Identity = { sub: string; email: string; name: string };
 type Vault = { available(): boolean; encrypt(value: string): Buffer; decrypt(value: Buffer): string };
@@ -48,13 +49,8 @@ export class GoogleAccount {
     }
   }
   async configure(json: unknown) {
-    const installed = (json as any)?.installed;
-    if (!installed || !/^[a-zA-Z0-9_-]+\.apps\.googleusercontent\.com$/.test(installed.client_id || "") ||
-        (installed.client_secret && (typeof installed.client_secret !== "string" || installed.client_secret.length > 1000))) {
-      throw new Error("Select the downloaded Google Desktop app OAuth client JSON, not a web client or service account.");
-    }
+    const config = desktopRegistration(json);
     if (this.identity) throw new Error("Log out safely before changing the Google application registration.");
-    const config = { client_id: installed.client_id, client_secret: installed.client_secret };
     await this.save("google-client.bin", config);
     this.config = config;
   }
