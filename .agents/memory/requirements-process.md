@@ -25,7 +25,13 @@ On sign-in, download all workspace files locally in the background and offer an 
 
 **Why:** The user said “When students sign in, the system downloads all the files from the drive locally in background. And an option to logout and delete all the files from the system.”
 
-**How to apply:** Treat background downloading and an explicit logout-and-local-cleanup action as requested behavior, not merely on-demand caching. The working interpretation is the student's app workspace and app-managed local copies, not unrelated Drive or computer files; this scope was stated to the user but has not yet been explicitly confirmed. Do not infer authorization for broad filesystem deletion, deletion of Drive originals, or automatic loss of unsynced edits. Handling pending uploads during cleanup still needs a decision. No application implementation was authorized.
+**How to apply:** Treat background downloading and an explicit logout-and-local-cleanup action as requested behavior, not merely on-demand caching. The working interpretation is the student's app workspace and app-managed local copies, not unrelated Drive or computer files; this scope was stated to the user but has not yet been explicitly confirmed. Do not infer authorization for broad filesystem deletion, deletion of Drive originals, or automatic loss of unsynced edits. Pending uploads must finish successfully before cleanup, as separately confirmed below. No application implementation was authorized.
+
+Require successful Drive sync before logout-and-local-cleanup when changes are unsynced.
+
+**Why:** The user selected “Require successful sync before cleanup” rather than allowing a confirmed discard of unsynced changes.
+
+**How to apply:** Finish and verify pending uploads before removing the local workspace. If offline or sync fails, pause cleanup, explain the outstanding work, and retain local data. Do not offer a discard-unsynced-changes bypass through this action.
 
 Each student's records should be stored in that student's own Google Drive.
 
