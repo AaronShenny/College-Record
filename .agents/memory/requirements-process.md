@@ -326,3 +326,9 @@ Use Electron + React + Python for the Windows desktop application.
 **Why:** The user explicitly chose “lets go with electron + react + python” during the technology discussion.
 
 **How to apply:** Treat this stack as confirmed for architecture discussion and future implementation. Stack selection alone does not authorize starting application development.
+
+Version 1 must support automatic application updates.
+
+**Why:** The user explicitly selected “Automatic updates” rather than manual installer updates.
+
+**How to apply:** Include an automatic updater in the future desktop application scope. Download/install timing, user restart consent, release hosting, and signing remain proposals to discuss; selecting automatic updates does not approve those details or authorize implementation.
