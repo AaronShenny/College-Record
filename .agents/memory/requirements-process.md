@@ -243,11 +243,11 @@ Support working offline and syncing to Drive later.
 
 **How to apply:** Previously downloaded records can be edited offline and documents can be generated when required resources are cached. Queue local changes for upload after reconnection and show unsynced status. First sign-in and uncached Drive content require connectivity.
 
-Resolve conflicting saved changes using the most recently saved version.
+The initial conflict rule was most-recently-saved-wins; conflict handling is now deferred to version 2.
 
 **Why:** The user selected “Use most recently saved version” after the risk of overwriting the other changes was explained.
 
-**How to apply:** Specify latest-save-wins conflict resolution rather than mandatory manual comparison. The definition of save time across offline devices and any recovery/history policy still need to be specified; do not assume latest upload means latest save.
+**How to apply:** Follow the later one-active-computer version-one boundary and deferred conflict handling in `drive-storage-design.md`. Do not implement the earlier overwrite rule as an approved final policy.
 
 PDF export must use installed Microsoft Word, not LibreOffice.
 
@@ -265,7 +265,7 @@ Save a new version whenever a Word document is regenerated, retaining the previo
 
 **Why:** The user selected “Save a new version” after the risk of losing Word-only edits was explained.
 
-**How to apply:** Do not silently replace previous generated documents. Keep generated-document versioning separate from latest-save-wins conflict resolution for app data. Edits in Word do not automatically update the app's mapped content.
+**How to apply:** Do not silently replace previous generated documents. Keep generated-document versioning separate from synchronization conflict rules for app data. Edits in Word do not automatically update the app's mapped content.
 
 Support autosave and a Save Now action, including saving unfinished records.
 
@@ -331,25 +331,25 @@ Discuss the desktop application's features first and eventually create an SRS do
 
 **Why:** The user explicitly corrected premature implementation: “before building anything lets just discuss about the desktop application, about the features and eventually we create a SRS document.”
 
-**How to apply:** The user subsequently authorized SRS-based screens only. Visual mockups with sample data are allowed; a working desktop application, live Drive integration, authentication, execution, and document generation still require separate approval. The Electron + React + Python stack is now confirmed; other unapproved suggestions remain proposals.
+**How to apply:** The user subsequently authorized screens, then explicitly selected “Start desktop implementation” after the foundation scope was described: Electron, React interface, local saving, Python job bridge, and Windows packaging configuration. This replaces the earlier screens-only hold for that foundation. Preserve the approved mockups. Live Google sign-in/Drive sync and integration of the checked document/extraction engines are subsequent stages, not already working features. Student-code execution remains out of version-one scope.
 
 Use the user's supplied `pdf_to_qns` script as the baseline for the future PDF question extractor.
 
 **Why:** The user explicitly designated the attached script: “this is the script we r gonna use to extract qns from the pdf.”
 
-**How to apply:** Adapt this extractor when PDF import implementation is approved rather than substituting an AI service or unrelated extraction approach. This choice does not authorize wiring extraction into the screens-only mockups. Preserve student review before creating programs.
+**How to apply:** Adapt this extractor in the PDF-import integration stage rather than substituting an AI service or unrelated extraction approach. Preserve student review before creating programs. The user said PDF extraction, Word templating, and combined documents were already checked; reuse those engines rather than repeating feasibility work.
 
 Use Electron + React + Python for the Windows desktop application.
 
 **Why:** The user explicitly chose “lets go with electron + react + python” during the technology discussion.
 
-**How to apply:** Treat this stack as confirmed for architecture discussion and future implementation. Stack selection alone does not authorize starting application development.
+**How to apply:** Use this confirmed stack for the explicitly authorized desktop foundation. Stack selection alone was not permission to build; the later explicit implementation approval is.
 
 Version 1 must support automatic application updates.
 
 **Why:** The user explicitly selected “Automatic updates” rather than manual installer updates.
 
-**How to apply:** Include an automatic updater in the future desktop application scope. This choice does not authorize implementation.
+**How to apply:** Include an automatic updater in version-one scope, but do not confuse installer build configuration with a configured update/signing service. The initial foundation milestone does not include that release service.
 
 Use background update checks and automatic downloads, then offer “Restart now” or “Later” to install a verified update.
 
@@ -367,7 +367,7 @@ Students can keep editing while documents generate, with each generation using a
 
 **Why:** The user selected “Keep editing during generation” after reviewing snapshot-based background generation.
 
-**How to apply:** Capture the selected program content, source/output assets, template, and mappings consistently for the job after local save and validation. Later edits must not alter the running generation. Indicate when newer edits require regeneration; do not freeze editing for the duration of document jobs. This decision does not authorize application implementation.
+**How to apply:** Capture the selected program content, source/output assets, template, and mappings consistently for the job after local save and validation. Later edits must not alter the running generation. Indicate when newer edits require regeneration; do not freeze editing for the duration of document jobs.
 
 Continue generating the remaining individual program documents if one unexpectedly fails.
 

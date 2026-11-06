@@ -1,2 +1,3 @@
-- [Product scope and requirements process](requirements-process.md) — Windows record maker with Drive storage; discuss features and write an SRS before building.
-- [Approved Drive storage design](drive-storage-design.md) — Visible per-student app folder, JSON metadata, separate assets, stable IDs, local-first sync; retention and conflict details remain open.
+- [Product scope and requirements process](requirements-process.md) — Windows record maker; desktop foundation now authorized; live Drive and document-engine integration are subsequent stages.
+- [Approved Drive storage design](drive-storage-design.md) — Per-student JSON/files, stable IDs, local-first sync; one active computer in v1, conflicts deferred to v2.
+- [Desktop boundaries](desktop-boundaries.md) — Browser preview is development-only; native bridge failures must not redirect desktop saves into browser storage.

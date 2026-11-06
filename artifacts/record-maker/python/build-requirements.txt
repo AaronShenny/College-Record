@@ -1,0 +1,2 @@
+# Build-time only. End users receive the resulting executable, not a Python requirement.
+pyinstaller>=6.12,<7

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "College Record Maker"
+description = "React renderer and browser development preview for the Windows Electron desktop record-maker foundation. Uses a restricted desktop bridge, local JSON workspace, bundled Python worker and Windows installer configuration. Live Google authorization and Drive sync are not implemented in this foundation."
+version = "1.0.0"
+id = "artifacts/record-maker"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23352
+
+[services.development]
+run = "pnpm --filter @workspace/record-maker run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/record-maker", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/record-maker/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23352"
+BASE_PATH = "/"

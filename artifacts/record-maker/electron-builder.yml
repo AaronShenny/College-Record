@@ -1,0 +1,24 @@
+appId: org.collegerecordmaker.desktop
+productName: College Record Maker
+artifactName: College-Record-Maker-Foundation-${version}-${arch}-Setup.${ext}
+directories:
+  output: ../../generated-artifacts/desktop
+files:
+  - dist/desktop/**
+  - dist/renderer/**
+  - package.json
+extraResources:
+  - from: dist/python/record-maker-worker.exe
+    to: python/record-maker-worker.exe
+asar: true
+npmRebuild: false
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
