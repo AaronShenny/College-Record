@@ -12,3 +12,4 @@ said work should take fewer clicks and be easy to find.
 **How to apply:** Evaluate changes against routine record-making tasks, not
 only visual appearance. Distinguish setup from daily editing and keep primary
 actions clear without removing supported functionality or important errors.
+Apply this priority to Settings and sync screens as well, not just the editor.
