@@ -2,6 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { bridge } from "@/lib/bridge";
 import { cloudStatus, generateDocuments, type CloudStatus, type GenerationResult } from "@/lib/workflow-api";
 import { workspaceSchema, type Program, type RuntimeInfo, type Subject, type Workspace } from "@/lib/contracts";
+import { programChecks } from "@/lib/program-checks";
+import { mergeGenerationChoice, type GenerationChoice } from "@/lib/generation-choice";
+export type { GenerationChoice } from "@/lib/generation-choice";
+export { programChecks, requiredMappings } from "@/lib/program-checks";
 
 export type SaveKind = "idle" | "dirty" | "saving" | "saved" | "error" | "invalid";
 export type SaveState = { kind: SaveKind; message?: string; savedAt?: string; storage?: string; pending?: number };
@@ -28,6 +32,8 @@ type Store = {
   gen: GenJob;
   startGeneration: (subjectId: string, programIds: string[], mode: "individual" | "combined", pdf: boolean) => void;
   docsVersion: number;
+  generationChoices: Record<string, GenerationChoice>;
+  setGenerationChoice: (subjectId: string, choice: Partial<GenerationChoice>) => void;
 };
 export type GenJob = { state: "idle" | "running" | "done" | "error"; subjectId?: string; count?: number; mode?: string; startedAt?: string; result?: GenerationResult; error?: string };
 export function cloudLabel(c: CloudStatus | null): { tone: "good" | "warn" | "alert" | "neutral"; text: string } {
@@ -53,6 +59,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [drafts, setDrafts] = useState<Set<string>>(new Set());
+  // Session-local choices belong to the student workspace, not to a page.
+  // An empty explicit selection is meaningful and must never become "all".
+  const [generationChoices, setGenerationChoices] = useState<Record<string, GenerationChoice>>({});
+  const setGenerationChoice = useCallback((subjectId: string, choice: Partial<GenerationChoice>) => {
+    setGenerationChoices(previous => ({
+      ...previous,
+      [subjectId]: mergeGenerationChoice(previous[subjectId], choice),
+    }));
+  }, []);
 
   const latest = useRef<Workspace | null>(null);
   const rev = useRef(0);
@@ -74,8 +89,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const notify = useCallback((text: string, tone: "info" | "error" = "info") => {
     const id = Date.now() + Math.random();
-    setToasts(t => [...t.slice(-3), { id, text, tone }]);
-    window.setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), tone === "error" ? 9000 : 4500);
+    setToasts(t => [...t.filter(x => x.tone === "error" && x.text !== text), ...t.filter(x => x.tone !== "error").slice(-2), { id, text, tone }]);
+    if (tone !== "error") window.setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4500);
   }, []);
   const dismiss = useCallback((id: number) => setToasts(t => t.filter(x => x.id !== id)), []);
 
@@ -128,6 +143,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(async () => {
     setLoadError(null); setWorkspace(null);
+    setGenerationChoices({});
+    setDrafts(new Set());
     try {
       const w = await bridge.loadWorkspace();
       latest.current = w; rev.current = 0; savedRev.current = 0; setLocalRevision(null);
@@ -149,6 +166,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const startGeneration = useCallback((subjectId: string, programIds: string[], mode: "individual" | "combined", pdf: boolean) => {
     if (genRunning.current || !latest.current) return;
+    if (draftsRef.current.size) {
+      notify("Fix the highlighted unsaved fields before generating. Your draft is still open.", "error");
+      return;
+    }
     genRunning.current = true;
     const snapshot = latest.current; // frozen at request time
     setGen({ state: "running", subjectId, count: programIds.length, mode, startedAt: nowIso() });
@@ -185,7 +206,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  return <Ctx.Provider value={{ workspace, loadError, reload: () => void reload(), update, save, saveNow, runtime, runtimeError, toasts, notify, dismiss, drafts, setDraft, cloud, cloudError, refreshCloud, isClean, gen, startGeneration, docsVersion }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ workspace, loadError, reload: () => void reload(), update, save, saveNow, runtime, runtimeError, toasts, notify, dismiss, drafts, setDraft, cloud, cloudError, refreshCloud, isClean, gen, startGeneration, docsVersion, generationChoices, setGenerationChoice }}>{children}</Ctx.Provider>;
 }
 
 export function useStore() {
@@ -202,37 +223,6 @@ export const slug = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g,
 export const nextNumber = (s: Subject) => { const used = new Set(activePrograms(s).map(p => p.number)); let n = 1; while (used.has(n)) n++; return n; };
 export const initials = (name: string) => name.split(/\s+/).filter(w => /^[A-Za-z]/.test(w) && !/^(of|and|the|lab)$/i.test(w)).slice(0, 2).map(w => w[0]!.toUpperCase()).join("") || "S";
 
-export function requiredMappings(s?: Subject): string[] {
-  const t = s?.template;
-  if (!t) return [];
-  return Object.values(t.mappings).filter(m => m.required && m.field !== "skip").map(m => m.field);
-}
-const filled = (v?: string) => !!v && v.trim().length > 0;
-export function programChecks(p: Program, s?: Subject) {
-  const hasOutput = p.outputs.some(o => o.include);
-  const req = requiredMappings(s);
-  if (s?.template && Object.keys(s.template.mappings).length > 0) {
-    const checks: { label: string; ok: boolean }[] = [];
-    const seen = new Set<string>();
-    for (const f of req) {
-      if (seen.has(f)) continue; seen.add(f);
-      if (f === "title") checks.push({ label: "Title entered", ok: filled(p.title) });
-      else if (f === "question") checks.push({ label: "Question entered", ok: filled(p.question) });
-      else if (f === "output") checks.push({ label: "Included output", ok: hasOutput });
-      else if (f.startsWith("source:")) { const role = f.slice(7); checks.push({ label: `Source: ${role}`, ok: p.sources.some(x => x.include && x.role === role && x.code.trim().length > 0) }); }
-      else if (f.startsWith("custom:")) {
-        const def = s.fields?.find(d => d.id === f.slice(7));
-        if (def?.scope === "program") checks.push({ label: def.label, ok: filled(p.values?.[def.id]) });
-      }
-    }
-    if (checks.length) return checks;
-  }
-  return [
-    { label: "Title or question entered", ok: filled(p.title) || filled(p.question) },
-    { label: "Included source with code", ok: p.sources.some(x => x.include && x.code.trim().length > 0) },
-    { label: "Included output", ok: hasOutput },
-  ];
-}
 export function programState(p: Program, s?: Subject): { tone: "good" | "warn" | "alert"; label: string; missing: string[] } {
   const checks = programChecks(p, s);
   const missing = checks.filter(c => !c.ok).map(c => c.label.toLowerCase());

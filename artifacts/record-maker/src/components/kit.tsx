@@ -1,25 +1,47 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { useStore } from "@/hooks/use-workspace";
 
 export function useHashRoute(canLeave?: () => boolean): string[] {
-  const read = () => (window.location.hash.replace(/^#/, "") || "/").split("/").filter(Boolean);
-  const [parts, setParts] = useState<string[]>(read);
+  const { drafts, notify } = useStore();
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
+  const acceptedHash = useRef(window.location.hash);
   const guard = useRef(canLeave);
   guard.current = canLeave;
+  const read = () => (window.location.hash.replace(/^#/, "") || "/").split("/").filter(Boolean);
+  const [parts, setParts] = useState<string[]>(read);
   useEffect(() => {
-    let acceptedHash = window.location.hash || "#/";
     const f = () => {
-      if (window.location.hash === acceptedHash) return;
-      if (guard.current && !guard.current()) {
-        window.history.replaceState(null, "", window.location.pathname + window.location.search + acceptedHash);
+      if (draftsRef.current.size && window.location.hash !== acceptedHash.current) {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search + acceptedHash.current);
+        notify("Fix the highlighted unsaved fields before leaving this program. Your draft has not been discarded.", "error");
+        const invalid = document.querySelector<HTMLElement>('[aria-invalid="true"]');
+        if (invalid) {
+          const sourcePanel = invalid.closest<HTMLElement>('[role="tabpanel"][hidden]');
+          if (sourcePanel) {
+            const tabId = sourcePanel.getAttribute("aria-labelledby");
+            if (tabId) document.getElementById(tabId)?.click();
+          }
+          let parent = invalid.parentElement;
+          while (parent) { if (parent instanceof HTMLDetailsElement) parent.open = true; parent = parent.parentElement; }
+          requestAnimationFrame(() => {
+            invalid.focus();
+            invalid.scrollIntoView({ block: "center" });
+          });
+        }
         return;
       }
-      acceptedHash = window.location.hash || "#/";
+      if (guard.current && !guard.current()) {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search + acceptedHash.current);
+        return;
+      }
+      acceptedHash.current = window.location.hash;
       setParts(read()); window.scrollTo(0, 0);
     };
     window.addEventListener("hashchange", f);
     return () => window.removeEventListener("hashchange", f);
-  }, []);
+  }, [notify]);
   return parts;
 }
 export const href = (path: string) => "#" + path;
