@@ -140,12 +140,30 @@ export class DriveSync {
   private controller?: AbortController;
   private finished: Promise<void> = Promise.resolve();
   private markFinished?: () => void;
+  private extrasCache?: { root: string; signature: string; until: number };
+  private extrasScan?: { root: string; promise: Promise<string> };
+  private statusEpoch = 0;
   constructor(readonly account: GoogleAccount, private store: () => WorkspaceStore) {}
+  invalidateStatus() { this.extrasCache = undefined; this.statusEpoch++; }
+  private async extrasSignature() {
+    const root = this.store().root;
+    if (this.extrasCache?.root === root && this.extrasCache.until > Date.now()) return this.extrasCache.signature;
+    if (this.extrasScan?.root === root) return this.extrasScan.promise;
+    const epoch = this.statusEpoch;
+    const promise = extras(root).then(files => {
+      const signature = hash(files.map(e => e.signature).join("\n"));
+      if (epoch === this.statusEpoch) this.extrasCache = { root, signature, until: Date.now() + 15_000 };
+      return signature;
+    });
+    this.extrasScan = { root, promise };
+    try { return await promise; }
+    finally { if (this.extrasScan?.promise === promise) this.extrasScan = undefined; }
+  }
   private async state(): Promise<SyncState | null> { return readJson(path.join(this.store().root, "sync-state.json"), null); }
   async status(): Promise<CloudStatus> {
     const state = await this.state();
     const pointer = await this.store().pointer();
-    const signature = hash((await extras(this.store().root)).map(e => e.signature).join("\n"));
+    const signature = await this.extrasSignature();
     return { connected: !!this.account.identity, configured: this.account.configured,
       account: this.account.identity ? { name: this.account.identity.name, email: this.account.identity.email } : undefined,
       busy: this.busy, state: this.busy ? "syncing" : this.lastFailure ? "error" : state ? "synced" : "local",
@@ -201,7 +219,7 @@ export class DriveSync {
     } catch (error) {
       this.lastFailure = true; this.message = error instanceof Error ? error.message : "Drive synchronization failed.";
       throw error;
-    } finally { this.busy = false; this.controller = undefined; this.markFinished?.(); this.markFinished = undefined; }
+    } finally { this.invalidateStatus(); this.busy = false; this.controller = undefined; this.markFinished?.(); this.markFinished = undefined; }
     return this.status();
   }
   private async upload(api: DriveFiles, lookup: Map<string, RemoteFile>, root: string, _revision: string, expectedRemote: string | null) {
@@ -292,7 +310,7 @@ export class DriveSync {
       }
       const pointer = await this.store().pointer();
       const sameWorkspace = pointer && JSON.stringify(await this.store().load()) === JSON.stringify(workspace);
-      const receipt = sameWorkspace ? pointer : await this.store().save(workspace);
+      const receipt = sameWorkspace ? pointer : await this.store().save(workspace, pointer?.revisionId ?? null);
       const signature = hash((await extras(this.store().root)).map(e => e.signature).join("\n"));
       await atomicJson(path.join(this.store().root, "sync-state.json"), { localRevision: receipt.revisionId, remoteRevision: manifest.revision, extraSignature: signature, lastSyncAt: new Date().toISOString() });
     } finally { await fs.rm(stage, { recursive: true, force: true }); }

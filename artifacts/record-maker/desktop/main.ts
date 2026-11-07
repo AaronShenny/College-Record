@@ -19,10 +19,12 @@ if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on("second-instance", () => { window?.restore(); window?.focus(); });
   app.whenReady().then(async () => {
+    const started = performance.now();
     services = new NativeWorkflows(app.getPath("userData"), () => window!);
     await services.initialize();
     let rendererRoot = services.root;
     let rendererRevision: string | null = null;
+    let rendererAccount: string | null = null;
     const handle = (name: string, handler: (...args: any[]) => unknown) => {
       ipcMain.handle(`record-maker:${name}`, async (event, ...args) => {
         if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame ||
@@ -36,21 +38,36 @@ else {
       mode: "desktop", version: app.getVersion(), platform: process.platform,
       storageLabel: services!.root, driveConnected: !!services!.account.identity, pythonAvailable: null,
       requiresSignIn: app.isPackaged,
+      workspaceAccount: rendererAccount,
+      workspaceRevision: rendererRevision,
     }));
     handle("load", async () => {
-      const workspace = await services!.loadWorkspace();
-      rendererRoot = services!.root;
-      rendererRevision = (await services!.store.pointer())?.revisionId || null;
-      return workspace;
+      const started = performance.now();
+      const store = services!.store;
+      const loaded = await services!.loadWorkspace();
+      if (services!.switching || services!.store !== store) throw new Error("The account is changing. Wait for sign-in to finish, then retry opening your records.");
+      rendererRoot = store.root;
+      rendererRevision = loaded.revisionId;
+      rendererAccount = services!.account.identity?.email ?? null;
+      services!.diagnostics.record("workspace-load", { durationMs: Math.round(performance.now() - started), subjects: loaded.workspace.subjects.length });
+      return loaded.workspace;
     });
     handle("save", async input => {
+      const started = performance.now();
       if (!services!.canWork) throw new Error("Sign in with your college Google account before saving record data.");
       const store = services!.store;
-      if (services!.switching || rendererRoot !== services!.root) throw new Error("The account changed. Reload the correct workspace before saving; no old-account data was written into this account.");
+      if (services!.switching || rendererRoot !== services!.root) {
+        services!.diagnostics.record("save-rejected", { reason: "account-boundary", changing: services!.switching, rootMismatch: rendererRoot !== services!.root });
+        throw new Error("The account changed. Reload the correct workspace before saving; no old-account data was written into this account.");
+      }
       const current = (await store.pointer())?.revisionId || null;
-      if (current !== rendererRevision) throw new Error("The workspace changed from Drive. Unsaved edits remain in this window; do not overwrite the downloaded workspace.");
-      const receipt = await store.save(workspaceSchema.parse(input));
+      if (current !== rendererRevision) {
+        services!.diagnostics.record("save-rejected", { reason: "revision-boundary" });
+        throw new Error("The workspace changed from Drive. Unsaved edits remain in this window; do not overwrite the downloaded workspace.");
+      }
+      const receipt = await store.save(workspaceSchema.parse(input), rendererRevision);
       rendererRevision = receipt.revisionId;
+      services!.diagnostics.record("workspace-save", { durationMs: Math.round(performance.now() - started) });
       return receipt;
     });
     handle("workflow", (action, payload) => services!.run(z.string().max(80).parse(action), z.record(z.unknown()).parse(payload)));
@@ -101,6 +118,16 @@ else {
         message: "Finish saving before closing", detail: "Use Save Now and resolve any save error. Pending Drive uploads can remain queued locally, but unsaved edits must be saved before closing.", buttons: ["Keep working"] });
     });
     window.once("ready-to-show", () => window?.show());
+    window.on("unresponsive", () => services?.diagnostics.record("window-unresponsive", {
+      processes: app.getAppMetrics().map(m => ({ type: m.type, cpu: m.cpu.percentCPUUsage, memoryKB: m.memory.workingSetSize })),
+    }));
+    window.on("responsive", () => services?.diagnostics.record("window-responsive"));
+    let lastTick = performance.now();
+    setInterval(() => {
+      const now = performance.now();
+      if (now - lastTick > 3000) services?.diagnostics.record("main-thread-delay", { durationMs: Math.round(now - lastTick - 1000) });
+      lastTick = now;
+    }, 1000).unref();
     window.on("close", event => {
       if (services?.documents.busy) {
         event.preventDefault();
@@ -110,6 +137,7 @@ else {
     });
     window.on("closed", () => { window = undefined; });
     if (devUrl) await window.loadURL(devUrl); else await window.loadFile(entry);
+    services.diagnostics.record("window-loaded", { durationMs: Math.round(performance.now() - started) });
   }).catch(error => { dialog.showErrorBox("College Record Maker could not start", String(error)); app.quit(); });
   app.on("window-all-closed", () => app.quit());
   app.on("before-quit", event => {

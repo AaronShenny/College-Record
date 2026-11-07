@@ -42,10 +42,15 @@ export class WorkspaceStore {
     }
   }
   async load(): Promise<Workspace> {
+    return (await this.loadWithRevision()).workspace;
+  }
+  async loadWithRevision(): Promise<{ workspace: Workspace; revisionId: string | null }> {
     await this.queue;
     const pointer = await this.pointer();
-    if (!pointer) return emptyWorkspace();
-    const root = path.join(this.root, "snapshots", pointer.revisionId);
+    if (!pointer) return { workspace: emptyWorkspace(), revisionId: null };
+    return this.withSnapshot(async root => ({ workspace: await this.readSnapshot(root), revisionId: path.basename(root) }), false);
+  }
+  private async readSnapshot(root: string): Promise<Workspace> {
     try {
       const app = JSON.parse((await readManaged(root, "app.json")).toString("utf8")) as { schemaVersion: 1; subjects: Ref[] };
       const subjects = [];
@@ -89,10 +94,17 @@ export class WorkspaceStore {
       throw new Error("The local workspace is incomplete or invalid. Existing files were preserved; do not overwrite them with an empty workspace.", { cause: error });
     }
   }
-  save(input: Workspace): Promise<SaveReceipt> {
+  save(input: Workspace, expectedRevision?: string | null): Promise<SaveReceipt> {
     const workspace = workspaceSchema.parse(input);
     if (Buffer.byteLength(JSON.stringify(workspace)) > MAX_WORKSPACE_BYTES) return Promise.reject(new Error("This workspace exceeds the 256 MB local-save limit."));
-    const operation = this.queue.then(() => this.commit(workspace));
+    const operation = this.queue.then(async () => {
+      // Compare inside the write queue, not before joining it: a background
+      // download may already have queued a newer committed workspace.
+      if (expectedRevision !== undefined && ((await this.pointer())?.revisionId ?? null) !== expectedRevision) {
+        throw new Error("The workspace changed before this save could commit. Unsaved edits were preserved; no newer workspace was overwritten.");
+      }
+      return this.commit(workspace);
+    });
     this.queue = operation.catch(() => undefined);
     return operation;
   }
@@ -204,7 +216,7 @@ export class WorkspaceStore {
     if (!pointer) throw new Error("Save a subject before inspecting a snapshot");
     return path.join(this.root, "snapshots", pointer.revisionId);
   }
-  async withSnapshot<T>(job: (snapshot: string) => Promise<T>): Promise<T> {
+  async withSnapshot<T>(job: (snapshot: string) => Promise<T>, cleanup = true): Promise<T> {
     const capture = this.queue.then(async () => {
       const pointer = await this.pointer();
       if (!pointer) throw new Error("Save a subject before inspecting a snapshot");
@@ -217,12 +229,14 @@ export class WorkspaceStore {
     finally {
       const remaining = (this.pinned.get(revisionId) || 1) - 1;
       if (remaining) this.pinned.set(revisionId, remaining); else this.pinned.delete(revisionId);
-      const cleanup = this.queue.then(async () => {
-        const pointer = await this.pointer();
-        if (pointer) await this.collectSnapshots(pointer.revisionId);
-      });
-      this.queue = cleanup.catch(() => undefined);
-      await this.queue;
+      if (cleanup) {
+        const clean = this.queue.then(async () => {
+          const pointer = await this.pointer();
+          if (pointer) await this.collectSnapshots(pointer.revisionId);
+        });
+        this.queue = clean.catch(() => undefined);
+        await this.queue;
+      }
     }
   }
 }

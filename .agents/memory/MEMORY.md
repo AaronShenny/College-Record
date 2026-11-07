@@ -3,3 +3,4 @@
 - [Desktop boundaries](desktop-boundaries.md) — Browser preview is development-only; native bridge failures must not redirect desktop saves into browser storage.
 - [Drive commit semantics](drive-commit-semantics.md) — Generated-file-only changes need distinct remote commits; publish references before index and acknowledge last.
 - [Desktop UI priorities](ui-priorities.md) — Less clutter, fewer clicks, and easily findable actions take priority over cosmetic changes.
+- [Desktop performance](desktop-performance.md) — Avoid self-extracting Python helpers; renderer fixtures cannot establish native Windows responsiveness.

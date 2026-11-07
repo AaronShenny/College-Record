@@ -5,7 +5,7 @@ export type ImportRow = { number: number | null; title: string; question: string
 export type ImportResult = { entries?: ImportRow[]; columns?: string[]; rows?: Record<string, string>[]; warnings: string[] };
 export type DocumentFile = { id: string; name: string; format: "docx" | "pdf"; subjectId: string; programIds: string[]; createdAt: string; byteLength: number; dataBase64?: string };
 export type GenerationResult = { documents: DocumentFile[]; failures: { number?: number; message: string }[]; snapshotAt: string };
-export type CloudStatus = { connected: boolean; configured: boolean; account?: { name: string; email: string }; state: string; message?: string; lastSyncAt?: string; pending?: boolean; busy?: boolean; revision?: string; syncedRevision?: string };
+export type CloudStatus = { connected: boolean; configured: boolean; account?: { name: string; email: string }; state: string; message?: string; lastSyncAt?: string; pending?: boolean; busy?: boolean; switching?: boolean; revision?: string; syncedRevision?: string };
 export async function feature<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   if (window.recordMaker?.workflow) return window.recordMaker.workflow(action, payload);
   if (location.protocol === "file:" || navigator.userAgent.includes("Electron/")) throw new Error("Desktop workflow bridge is unavailable; no browser fallback was used.");
@@ -87,6 +87,7 @@ export async function localSourceFolder(): Promise<SourceFile[]> {
   return feature("source-folder");
 }
 export const cloudStatus = () => feature<CloudStatus>("cloud-status");
+export const exportDiagnostics = () => feature<{ saved: boolean }>("export-diagnostics");
 export const connectDrive = () => feature<CloudStatus>("connect-drive");
 export const syncDrive = () => feature<CloudStatus>("sync-drive");
 export const configureGoogle = () => feature<CloudStatus>("configure-google");

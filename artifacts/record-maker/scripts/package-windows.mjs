@@ -26,15 +26,15 @@ const run = (command, args) => {
 };
 run(process.execPath, [path.join(root, "scripts/build-desktop.mjs")]);
 run(process.env.RECORD_MAKER_PYTHON || "python", [
-  "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--console",
+  "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir", "--console",
   "--name", "record-maker-worker", "--distpath", "dist/python", "--workpath", "dist/pyinstaller",
   "--specpath", "dist", "python/worker.py",
   "--add-data", `${path.resolve(root, "../../attached_assets/pdf_to_qns_1793905163999.py")};extractor`,
   "--collect-data", "docx", "--collect-data", "docxcompose", "--collect-all", "pymupdf",
   "--hidden-import", "win32com.client", "--hidden-import", "pythoncom", "--hidden-import", "win32timezone",
 ]);
-if (!existsSync(path.join(root, "dist/python/record-maker-worker.exe"))) throw new Error("Python worker packaging did not produce an executable");
-const smoke = spawnSync(path.join(root, "dist/python/record-maker-worker.exe"), ["--workspace-root", path.join(root, "dist/worker-smoke")], {
+if (!existsSync(path.join(root, "dist/python/record-maker-worker/record-maker-worker.exe"))) throw new Error("Python worker packaging did not produce an executable");
+const smoke = spawnSync(path.join(root, "dist/python/record-maker-worker/record-maker-worker.exe"), ["--workspace-root", path.join(root, "dist/worker-smoke")], {
   cwd: root, encoding: "utf8", shell: false, windowsHide: true, timeout: 30_000,
   input: JSON.stringify({ protocol: 1, id: "packaging-health", action: "health", params: {} }) + "\n",
 });

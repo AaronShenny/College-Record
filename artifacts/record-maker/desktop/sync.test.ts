@@ -20,6 +20,56 @@ function data(): Workspace {
       outputs: [{ id: randomUUID(), kind: "text", name: "Result", text: "1", include: true }], outputMayBeStale: false, values: { [field]: "Friday" } }],
   }] };
 }
+
+test("status polling coalesces file scans and generation invalidates cached pending status", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "record-status-"));
+  try {
+    const store = new WorkspaceStore(root);
+    const account = { identity: { email: "fixture@rajagiri.edu", name: "Fixture" }, configured: true } as GoogleAccount;
+    const sync = new DriveSync(account, () => store);
+    assert.equal((await sync.status()).pending, false);
+    await fs.mkdir(path.join(root, "generated"), { recursive: true });
+    await fs.writeFile(path.join(root, "generated", "fixture.docx"), "fixture");
+    // UI-only polls may reuse the inventory, but actual generation explicitly
+    // invalidates it and sync itself always reads the real filesystem.
+    assert.equal((await sync.status()).pending, false);
+    sync.invalidateStatus();
+    const statuses = await Promise.all(Array.from({ length: 15 }, () => sync.status()));
+    assert.ok(statuses.every(status => status.pending));
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test("loaded workspaces carry the exact pinned revision, including concurrent saves", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "record-load-"));
+  try {
+    const store = new WorkspaceStore(root);
+    const first = data();
+    const one = await store.save(first);
+    const next = structuredClone(first); next.subjects[0].name = "Updated lab";
+    const loading = store.loadWithRevision();
+    const saving = store.save(next);
+    const loaded = await loading;
+    const two = await saving;
+    assert.ok(loaded.revisionId === one.revisionId || loaded.revisionId === two.revisionId);
+    assert.deepEqual(loaded.workspace, loaded.revisionId === one.revisionId ? first : next);
+    assert.deepEqual((await store.loadWithRevision()).workspace, next);
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test("a save queued behind another revision cannot overwrite it with stale renderer data", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "record-save-boundary-"));
+  try {
+    const store = new WorkspaceStore(root);
+    const before = data();
+    const old = await store.save(before);
+    const newer = structuredClone(before); newer.subjects[0].name = "Newer committed workspace";
+    const incoming = store.save(newer, old.revisionId);
+    const stale = store.save(before, old.revisionId);
+    const rejected = assert.rejects(stale, /no newer workspace was overwritten/);
+    await incoming; await rejected;
+    assert.deepEqual(await store.load(), newer);
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
 const account = { configured: true, identity: { sub: "test-sub", name: "Test student", email: "test@rajagiri.edu" } } as GoogleAccount;
 function fakeDrive() {
   const entries = new Map<string, any>();

@@ -5,6 +5,29 @@ import path from "node:path";
 import os from "node:os";
 import { CredentialUnlockError, GoogleAccount } from "./google-auth";
 
+test("repeated and concurrent Drive requests do not re-encrypt unchanged Google credentials", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "record-token-"));
+  let writes = 0;
+  try {
+    const account = new GoogleAccount(root, {
+      available: () => true, encrypt: text => { writes++; return Buffer.from(text); }, decrypt: bytes => bytes.toString(),
+    }, async () => {});
+    // Fake the provider, not the storage code: exercise the actual encryption
+    // and atomic persistence path without using a real Google account.
+    const client = { credentials: { access_token: "fixture-token", expiry_date: 9999999999999 },
+      getAccessToken: async () => ({ token: "fixture-token" }) };
+    (account as any).client = client;
+    account.identity = { sub: "fixture", email: "fixture@rajagiri.edu", name: "Fixture" };
+    await Promise.all(Array.from({ length: 30 }, () => account.token()));
+    assert.equal(writes, 1);
+    client.credentials = { ...client.credentials, access_token: "refreshed-fixture-token" };
+    await Promise.all(Array.from({ length: 30 }, () => account.token()));
+    assert.equal(writes, 2, "new credentials must still be securely persisted");
+    await account.clear();
+    await assert.rejects(account.token(), /Connect/);
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
 test("credential unlock failure is identifiable and does not expose or remove stored bytes", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "record-auth-"));
   try {

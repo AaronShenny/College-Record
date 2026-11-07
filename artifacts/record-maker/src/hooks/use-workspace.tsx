@@ -74,6 +74,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const savedRev = useRef(0);
   const inFlight = useRef(false);
   const timer = useRef<number | undefined>(undefined);
+  const loading = useRef(false);
+  const accountReload = useRef<string | null | undefined>(undefined);
+  const seenCloudRevision = useRef<string | undefined>(undefined);
   const lastSavedAt = useRef<string | undefined>(undefined);
   const statusRef = useRef<SaveKind>("idle");
   const [rawCloud, setCloud] = useState<CloudStatus | null>(null);
@@ -142,20 +145,28 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [flush, notify]);
 
   const reload = useCallback(async () => {
+    if (loading.current || inFlight.current) return;
+    loading.current = true;
+    window.clearTimeout(timer.current);
+    latest.current = null;
     setLoadError(null); setWorkspace(null);
     setGenerationChoices({});
     setDrafts(new Set());
     try {
       const w = await bridge.loadWorkspace();
-      latest.current = w; rev.current = 0; savedRev.current = 0; setLocalRevision(null);
+      const info = await bridge.getRuntime();
+      latest.current = w; rev.current = 0; savedRev.current = 0; setLocalRevision(info.workspaceRevision ?? null);
+      setRuntime(info); setRuntimeError(null);
       setWorkspace(w); setStatus({ kind: "idle" });
-    } catch (e) { setLoadError(errMsg(e)); }
-    bridge.getRuntime().then(r => { setRuntime(r); setRuntimeError(null); }).catch(e => setRuntimeError(errMsg(e)));
+    } catch (e) {
+      setLoadError(errMsg(e));
+      bridge.getRuntime().then(r => setRuntime(r)).catch(e => setRuntimeError(errMsg(e)));
+    } finally { loading.current = false; }
   }, [setStatus]);
 
   useEffect(() => { void reload(); }, [reload]);
   const refreshCloud = useCallback(async () => {
-    try { const c = await cloudStatus(); setCloud(c); setCloudError(null); return c; }
+      try { const c = await cloudStatus(); setCloud(previous => JSON.stringify(previous) === JSON.stringify(c) ? previous : c); setCloudError(null); return c; }
     catch (e) { setCloudError(errMsg(e)); return null; }
   }, []);
   useEffect(() => {
@@ -182,6 +193,31 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       .finally(() => { genRunning.current = false; setDocsVersion(v => v + 1); });
   }, [notify]);
   const isClean = (save.kind === "idle" || save.kind === "saved") && drafts.size === 0;
+  // This belongs to the workspace provider, not Settings: sign-in can complete
+  // on any route. Never let an account poll discard an unsaved workspace.
+  useEffect(() => {
+    if (runtime?.mode !== "desktop" || !rawCloud || rawCloud.switching || loading.current) return;
+    const desired = rawCloud.connected ? rawCloud.account?.email : null;
+    if (desired === undefined) return;
+    if (runtime.workspaceAccount === desired) { accountReload.current = undefined; return; }
+    if (!isClean) {
+      accountReload.current = undefined;
+      notify("The account changed. Your unsaved edits are still in this window and have not been written into another account.", "error");
+      return;
+    }
+    if (accountReload.current === desired) return;
+    accountReload.current = desired;
+    void reload();
+  }, [runtime, rawCloud, isClean, reload, notify]);
+  useEffect(() => {
+    if (!rawCloud || runtime?.mode !== "desktop" || loading.current || !workspace) return;
+    const signature = `${rawCloud.account?.email ?? ""}:${rawCloud.revision ?? ""}:${rawCloud.busy}`;
+    if (signature === seenCloudRevision.current) return;
+    seenCloudRevision.current = signature;
+    if (isClean && rawCloud.connected && !rawCloud.busy && rawCloud.revision &&
+        rawCloud.revision === rawCloud.syncedRevision && rawCloud.revision !== localRevision &&
+        runtime.workspaceAccount === rawCloud.account?.email) void reload();
+  }, [rawCloud, runtime, workspace, isClean, localRevision, reload]);
   // Never trust a cached status over local knowledge: unsaved edits, or a saved
   // revision Drive has not acknowledged, always mean pending.
   const cloud: CloudStatus | null = rawCloud && rawCloud.connected
@@ -206,7 +242,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  return <Ctx.Provider value={{ workspace, loadError, reload: () => void reload(), update, save, saveNow, runtime, runtimeError, toasts, notify, dismiss, drafts, setDraft, cloud, cloudError, refreshCloud, isClean, gen, startGeneration, docsVersion, generationChoices, setGenerationChoice }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ workspace, loadError, reload, update, save, saveNow, runtime, runtimeError, toasts, notify, dismiss, drafts, setDraft, cloud, cloudError, refreshCloud, isClean, gen, startGeneration, docsVersion, generationChoices, setGenerationChoice }}>{children}</Ctx.Provider>;
 }
 
 export function useStore() {

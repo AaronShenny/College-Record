@@ -4,6 +4,7 @@ import { CloudPanel, UpdatesPanel } from "@/components/cloud-panel";
 import { Shell } from "@/components/shell";
 import { PageHead } from "@/components/kit";
 import { bridge } from "@/lib/bridge";
+import { exportDiagnostics } from "@/lib/workflow-api";
 import { pendingItemCount, type WorkerResult } from "@/lib/contracts";
 import { activePrograms, activeSubjects, errMsg, pad, useStore } from "@/hooks/use-workspace";
 
@@ -23,6 +24,7 @@ export default function SettingsPage() {
   const { runtime, runtimeError, workspace, save } = useStore();
   const [py, setPy] = useState<Job>({ state: "idle" });
   const [snap, setSnap] = useState<Job>({ state: "idle" });
+  const [diagnostics, setDiagnostics] = useState("");
   const subjects = activeSubjects(workspace!);
   const [sid, setSid] = useState<string>("");
   const [pids, setPids] = useState<Set<string>>(new Set());
@@ -43,6 +45,14 @@ export default function SettingsPage() {
         <UpdatesPanel />
         <details className="settings-details" data-testid="details-settings">
           <summary>Details</summary>
+          {runtime?.mode === "desktop" && <div style={{ margin: "0 16px 16px" }}>
+            <button className="btn small" disabled={diagnostics === "Exporting…"} data-testid="button-export-diagnostics" onClick={async () => {
+              setDiagnostics("Exporting…");
+              try { const result = await exportDiagnostics(); setDiagnostics(result.saved ? "Diagnostic log saved. It contains timings and memory usage, not your records or credentials." : ""); }
+              catch (e) { setDiagnostics(errMsg(e)); }
+            }}>Export diagnostic log</button>
+            {diagnostics && <p className="hint" role="status">{diagnostics}</p>}
+          </div>}
           <p className="hint">Microsoft Word is required for PDF export. Editing and ordinary Word document generation work without it.</p>
           <div className="settings-grid">
           <section className="panel panel-pad">

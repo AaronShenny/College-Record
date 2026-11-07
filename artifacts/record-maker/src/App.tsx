@@ -12,6 +12,7 @@ import TrashPage from "@/pages/trash";
 import DocumentsPage from "@/pages/documents";
 import TemplatePage from "@/pages/template";
 import ImportPage from "@/pages/import";
+import { workspaceAccess } from "@/lib/workspace-access";
 
 function Routes() {
   const { workspace, loadError, reload, runtime, cloud, drafts, notify } = useStore();
@@ -20,7 +21,8 @@ function Routes() {
     notify("Fix the highlighted draft fields before changing pages. Your entered values are still here.", "error");
     return false;
   });
-  if ((runtime as { requiresSignIn?: boolean } | null)?.requiresSignIn && (!cloud || !cloud.connected)) return <DesktopSignIn />;
+  const access = workspaceAccess(runtime, cloud);
+  if (access === "sign-in") return <DesktopSignIn />;
   if (loadError) {
     return <div className="crm" style={{ display: "grid", placeItems: "center", padding: 24 }}>
       <div className="panel panel-pad" style={{ maxWidth: 480 }} role="alert">
@@ -32,9 +34,9 @@ function Routes() {
       </div>
     </div>;
   }
-  if (!workspace) {
+  if (!workspace || access === "opening") {
     return <div className="crm" aria-busy="true"><div className="app-shell"><aside className="sidebar"><div className="skel" style={{ height: 36 }} /><div className="skel" style={{ height: 160 }} /></aside>
-      <main style={{ padding: 36, display: "grid", gap: 16, alignContent: "start" }}><span className="sr-only">Loading workspace</span><div className="skel" style={{ height: 40, width: 320 }} /><div className="skel" style={{ height: 130 }} /><div className="skel" style={{ height: 260 }} /></main></div></div>;
+      <main style={{ padding: 36, display: "grid", gap: 16, alignContent: "start" }}><p role="status">{access === "opening" ? "Opening your account’s records…" : "Loading your saved records…"}</p><p className="hint">The first download needs Drive. After that, saved records open locally while sync runs in the background.</p><div className="skel" style={{ height: 40, width: 320 }} /><div className="skel" style={{ height: 130 }} /><div className="skel" style={{ height: 260 }} /></main></div></div>;
   }
   const [a, b, c] = parts;
   let page;

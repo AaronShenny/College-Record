@@ -23,6 +23,8 @@ export class GoogleAccount {
   private client?: OAuth2Client;
   identity?: Identity;
   private config?: { client_id: string; client_secret?: string };
+  private savedSessionHash?: string;
+  private sessionWrites: Promise<void> = Promise.resolve();
   constructor(private directory: string, private vault: Vault, private openBrowser: (url: string) => Promise<void>) {}
   get configured() { return !!this.config; }
   get key() { return this.identity ? createHash("sha256").update(this.identity.sub).digest("hex").slice(0, 32) : null; }
@@ -49,9 +51,10 @@ export class GoogleAccount {
     if (!this.config) return;
     const stored = await this.read("google-session.bin");
     if (stored) {
-      this.client = new OAuth2Client(this.config.client_id, this.config.client_secret);
+      this.client = new OAuth2Client({ clientId: this.config.client_id, clientSecret: this.config.client_secret, transporterOptions: { timeout: 30_000 } });
       this.client.setCredentials(stored.tokens as Credentials);
       this.identity = stored.identity;
+      this.savedSessionHash = createHash("sha256").update(JSON.stringify({ identity: this.identity, tokens: this.client.credentials })).digest("hex");
     }
   }
   /** Called only after explicit recovery confirmation. Never touches workspaces. */
@@ -83,7 +86,7 @@ export class GoogleAccount {
       const address = server.address();
       if (!address || typeof address === "string") throw new Error("Google sign-in callback could not start.");
       const redirect = `http://127.0.0.1:${address.port}/oauth2callback`;
-      const client = new OAuth2Client(this.config.client_id, this.config.client_secret, redirect);
+      const client = new OAuth2Client({ clientId: this.config.client_id, clientSecret: this.config.client_secret, redirectUri: redirect, transporterOptions: { timeout: 30_000 } });
       const authorization = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       const scope = "openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly";
       authorization.search = new URLSearchParams({ client_id: this.config.client_id, redirect_uri: redirect, response_type: "code",
@@ -129,11 +132,25 @@ export class GoogleAccount {
     const { token } = await this.client.getAccessToken()
       .catch(() => { throw new Error("Google access could not be refreshed. Check your network or reconnect the same college account; local work is preserved."); });
     if (!token) throw new Error("Google access expired. Reconnect your college account.");
-    await this.save("google-session.bin", { identity: this.identity, tokens: this.client.credentials });
+    // Drive may make hundreds of requests with the same access token. Windows
+    // encryption is synchronous, so do not encrypt/write unchanged credentials
+    // for every request on Electron's main thread.
+    const write = this.sessionWrites.then(async () => {
+      if (!this.client || !this.identity) throw new Error("The signed-in account changed during authorization.");
+      const session = { identity: this.identity, tokens: this.client.credentials };
+      const signature = createHash("sha256").update(JSON.stringify(session)).digest("hex");
+      if (signature === this.savedSessionHash) return;
+      await this.save("google-session.bin", session);
+      this.savedSessionHash = signature;
+    });
+    this.sessionWrites = write.catch(() => undefined);
+    await write;
     return token;
   }
   async clear() {
+    await this.sessionWrites;
     await fs.rm(path.join(this.directory, "google-session.bin"), { force: true });
     this.client = undefined; this.identity = undefined;
+    this.savedSessionHash = undefined;
   }
 }

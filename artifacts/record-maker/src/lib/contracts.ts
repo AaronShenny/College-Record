@@ -72,6 +72,8 @@ export type SourceFile = Program["sources"][number];
 export type OutputItem = Program["outputs"][number];
 export type SaveReceipt = { savedAt: string; revisionId: string; pendingItems: number; storage: "filesystem" | "browser" };
 export type RuntimeInfo = {
+  workspaceAccount?: string | null;
+  workspaceRevision?: string | null;
   mode: "desktop" | "browser-preview"; version: string; platform: string;
   storageLabel: string; driveConnected: boolean; pythonAvailable: boolean | null;
   requiresSignIn?: boolean;

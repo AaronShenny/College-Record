@@ -10,8 +10,8 @@ files:
 extraResources:
   - from: dist/runtime-config
     to: config
-  - from: dist/python/record-maker-worker.exe
-    to: python/record-maker-worker.exe
+  - from: dist/python/record-maker-worker
+    to: python
 asar: true
 npmRebuild: false
 win:

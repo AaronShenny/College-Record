@@ -4,28 +4,14 @@ import { Modal, fmtTime } from "./kit";
 import { checkUpdates, configureGoogle, connectDrive, logoutCleanup, restartForUpdate, syncDrive, type CloudStatus } from "@/lib/workflow-api";
 import { cloudLabel, errMsg, useStore } from "@/hooks/use-workspace";
 
-const keyOf = (s: CloudStatus | null) => (s?.connected ? s.account?.email ?? "connected" : "");
-
 export function CloudPanel() {
   const { runtime, reload, notify, cloud: status, cloudError, refreshCloud, isClean: clean } = useStore();
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [ack, setAck] = useState(false);
-  const account = useRef<string | null>(null);
   const cleanRef = useRef(clean); cleanRef.current = clean;
   const desktop = runtime?.mode === "desktop";
-
-  // Account change detected from the global poll: reload only when clean.
-  useEffect(() => {
-    if (!status) return;
-    const k = keyOf(status);
-    if (account.current !== null && account.current !== k) {
-      if (cleanRef.current) { reload(); notify(k ? "Signed-in workspace loaded." : "Signed out. Local workspace loaded."); }
-      else notify("The account changed while you have unsaved edits. Save or fix them; the workspace reloads after that.", "error");
-    }
-    account.current = k;
-  }, [status, reload, notify]);
 
   const run = async (key: string, fn: () => Promise<CloudStatus>, ok?: string, reloadAfter = false) => {
     setBusy(key); setErr(null);
@@ -58,7 +44,7 @@ export function CloudPanel() {
             <div><b>{status?.account?.email ?? "Not signed in"}</b><small>{status?.connected ? "College account" : "Use your rajagiri.edu account"}</small></div>
           </div>
           {!status?.connected && <button className="btn" disabled={!desktop || cloudBusy || !clean || !status?.configured} onClick={() => void run("connect", connectDrive, "Google Drive connected.", true)} data-testid="button-connect-drive"><LogIn size={13} /> {busy === "connect" ? "Waiting for sign-in…" : "Connect Google account"}</button>}
-          {status?.connected && <button className="btn" disabled={!desktop || cloudBusy || !clean} onClick={() => void run("connect", connectDrive, "Google account reconnected.", true)} data-testid="button-reconnect-drive"><LogIn size={13} /> {busy === "connect" ? "Waiting for sign-in…" : "Reconnect account"}</button>}
+          {status?.connected && status.state === "error" && /authoriz|access.*expir|reconnect|sign.?in/i.test(status.message ?? "") && <button className="btn" disabled={!desktop || cloudBusy || !clean} onClick={() => void run("connect", connectDrive, "Google account reconnected.", true)} data-testid="button-reconnect-drive"><LogIn size={13} /> {busy === "connect" ? "Waiting for sign-in…" : "Sign in again"}</button>}
           {status?.connected && <button className="btn small ghost settings-signout" disabled={cloudBusy || !clean} onClick={() => setConfirm(true)} data-testid="button-logout-delete"><LogOut size={13} /> Sign out & clear local files</button>}
           {desktop && <details className="settings-connection-details">
             <summary>Connection setup</summary>

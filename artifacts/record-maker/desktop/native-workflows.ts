@@ -10,6 +10,7 @@ import { PythonWorker } from "./worker-client";
 import { DocumentService } from "./processing";
 import { Updates } from "./updates";
 import { parseDesktopRegistration } from "./google-registration.mjs";
+import { PerformanceLog } from "./performance-log";
 
 export class NativeWorkflows {
   root: string;
@@ -17,11 +18,13 @@ export class NativeWorkflows {
   worker!: PythonWorker;
   documents!: DocumentService;
   readonly account: GoogleAccount;
+  readonly diagnostics: PerformanceLog;
   sync: DriveSync;
   private changing = false;
   private startupSync: Promise<unknown> = Promise.resolve();
   readonly updates = new Updates(app.isPackaged);
   constructor(private directory: string, private window: () => BrowserWindow) {
+    this.diagnostics = new PerformanceLog(directory, app.getVersion());
     this.root = path.join(directory, "workspaces/local-development");
     this.store = new WorkspaceStore(this.root);
     this.activate(this.root);
@@ -79,24 +82,32 @@ export class NativeWorkflows {
   get switching() { return this.changing; }
   get canWork() { return !app.isPackaged || !!this.account.identity; }
   async loadWorkspace() {
-    if (!this.canWork) return { schemaVersion: 1 as const, subjects: [] };
-    await this.startupSync;
+    if (!this.canWork) return { workspace: { schemaVersion: 1 as const, subjects: [] }, revisionId: null };
+    // A cached workspace must open even on a slow/offline connection. Only a
+    // first download, with no local committed snapshot, needs to wait for Drive.
+    if (!(await this.store.pointer())) await this.startupSync;
     if (this.account.identity && !(await this.store.pointer())) {
       if (this.sync.busy) throw new Error("The initial Drive download is still running. Retry when synchronization finishes.");
       await this.sync.sync();
     }
-    return this.store.load();
+    return this.store.loadWithRevision();
   }
   async run(action: string, input: Record<string, unknown>) {
     if (!input || typeof input !== "object") throw new Error("Invalid workflow request.");
-    if (!this.canWork && !["cloud-status", "configure-google", "connect-drive", "check-updates", "restart-update"].includes(action)) {
+    if (!this.canWork && !["cloud-status", "configure-google", "connect-drive", "check-updates", "restart-update", "export-diagnostics"].includes(action)) {
       throw new Error("Sign in with your college Google account before accessing record data.");
     }
     if (["inspect-template", "import-questions", "generate"].includes(action)) {
       if (this.changing) throw new Error("Wait for the account change to complete.");
-      return this.documents.run(action, input);
+      try { return await this.documents.run(action, input); }
+      finally { this.sync.invalidateStatus(); }
     }
-    if (action === "cloud-status") return { ...await this.sync.status(), busy: this.changing || this.sync.busy };
+    if (action === "cloud-status") return { ...await this.sync.status(), busy: this.changing || this.sync.busy, switching: this.changing };
+    if (action === "export-diagnostics") {
+      const chosen = await dialog.showSaveDialog(this.window(), { defaultPath: "record-maker-diagnostics.txt", filters: [{ name: "Diagnostic log", extensions: ["txt"] }] });
+      if (!chosen.canceled && chosen.filePath) await this.diagnostics.exportTo(chosen.filePath);
+      return { saved: !chosen.canceled };
+    }
     if (action === "list-documents") return this.documents.list();
     if (action === "configure-google") {
       this.canChange();
@@ -113,8 +124,12 @@ export class NativeWorkflows {
       try {
         await this.store.load();
         await this.account.signIn();
-        this.activate(path.join(this.directory, "workspaces", `account-${this.account.key}`));
-        return await this.sync.sync();
+        const root = path.join(this.directory, "workspaces", `account-${this.account.key}`);
+        // Repairing authorization for the SAME account must not replace its
+        // store or invalidate an already loaded renderer's save boundary.
+        if (root !== this.root) this.activate(root);
+        this.startupSync = this.sync.sync().catch(() => undefined);
+        return await this.sync.status();
       } finally { this.changing = false; }
     }
     if (action === "sync-drive") {
