@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Download, ExternalLink, FileText, RefreshCw } from "lucide-react";
+import { AlertTriangle, FileText, RefreshCw } from "lucide-react";
+import { DocRow, GenResult, useDocAction } from "@/components/generate-dialog";
 import { Shell } from "@/components/shell";
-import { EmptyState, PageHead, fmtTime, go, href } from "@/components/kit";
-import { listDocuments, openDocument, type DocumentFile } from "@/lib/workflow-api";
+import { EmptyState, PageHead, go, href } from "@/components/kit";
+import { listDocuments, type DocumentFile } from "@/lib/workflow-api";
 import { activePrograms, activeSubjects, errMsg, pad, useStore } from "@/hooks/use-workspace";
 
 
 export default function DocumentsPage({ sid: initialSid }: { sid?: string }) {
-  const { workspace, runtime, notify, gen: job, startGeneration, docsVersion } = useStore();
+  const { workspace, runtime, gen: job, startGeneration, docsVersion } = useStore();
   const subjects = activeSubjects(workspace!);
   const [sid, setSid] = useState(initialSid && subjects.some(s => s.id === initialSid) ? initialSid : subjects[0]?.id ?? "");
   const subject = subjects.find(s => s.id === sid);
@@ -17,7 +18,7 @@ export default function DocumentsPage({ sid: initialSid }: { sid?: string }) {
   const [pdf, setPdf] = useState(false);
   const [docs, setDocs] = useState<DocumentFile[] | null>(null);
   const [docsErr, setDocsErr] = useState<string | null>(null);
-  const [opening, setOpening] = useState<string | null>(null);
+  const { opening, act } = useDocAction();
 
   const refresh = useCallback(async () => {
     setDocsErr(null);
@@ -34,11 +35,6 @@ export default function DocumentsPage({ sid: initialSid }: { sid?: string }) {
     if (!subject || selected.length === 0) return;
     startGeneration(subject.id, selected.map(p => p.id), mode, pdf);
   };
-  const act = async (d: DocumentFile, action: "open" | "download") => {
-    setOpening(d.id + action);
-    try { await openDocument(d, action); } catch (e) { notify(errMsg(e), "error"); } finally { setOpening(null); }
-  };
-
   const grouped = useMemo(() => {
     const m = new Map<string, DocumentFile[]>();
     for (const d of [...(docs ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
@@ -52,7 +48,7 @@ export default function DocumentsPage({ sid: initialSid }: { sid?: string }) {
   return (
     <Shell active="documents" crumb="Documents">
       <div className="page">
-        <PageHead eyebrow="Word records" title="Documents" description="Fill your reviewed template with a frozen snapshot of the selected programs. You can keep editing elsewhere while it runs." />
+        <PageHead eyebrow="Word records" title="Documents" description="Generate from any subject and open saved versions. Older versions are never replaced." />
         {subjects.length === 0 ? <div className="panel"><EmptyState mark="01" title="No subjects yet" action={<a className="btn primary" href={href("/subjects")}>Go to subjects</a>}>Create a subject, upload its template and add programs first.</EmptyState></div> : (
         <div className="docs-layout">
           <section className="panel panel-pad" aria-labelledby="h-gen">
@@ -79,13 +75,7 @@ export default function DocumentsPage({ sid: initialSid }: { sid?: string }) {
               <FileText size={14} /> {job.state === "running" ? "Generating…" : `Generate ${mode === "combined" ? "combined record" : `${selected.length} file(s)`}`}</button>
             <p className="hint" style={{ marginBottom: 0 }}>Required fields are checked by the generator. Nothing you wrote is executed.</p>
 
-            {job.state === "running" && <div className="skel" style={{ height: 50, marginTop: 10 }} role="status" aria-label="Generating" />}
-            {job.state === "error" && <div className="notice red" role="alert" style={{ marginTop: 10 }}><AlertTriangle size={14} /><span><b>Generation failed for {nameOf(job.subjectId ?? "")}.</b> {job.error}</span></div>}
-            {job.state === "done" && job.result && <div style={{ display: "grid", gap: 8, marginTop: 10 }} data-testid="text-generation-result">
-              <div className={`notice ${job.result.documents.length ? "green" : "red"}`}><FileText size={14} /><span><b>{job.result.documents.length} file(s) saved</b> for {nameOf(job.subjectId ?? "")} from snapshot taken {fmtTime(job.result.snapshotAt)}.</span></div>
-              {job.result.failures.length > 0 && <div className="notice red" role="alert"><AlertTriangle size={14} /><span><b>{job.result.failures.length} failure(s):</b>{job.result.failures.map((f, i) => <span key={i} style={{ display: "block" }}>{f.number != null ? `Program ${pad(f.number)}: ` : ""}{f.message}</span>)}</span></div>}
-              {job.result.documents.map(d => <DocRow key={d.id} d={d} desktop={runtime?.mode === "desktop"} opening={opening} act={act} />)}
-            </div>}
+            <div style={{ marginTop: 10 }}><GenResult subjectName={nameOf} /></div>
           </section>
 
           <section className="panel panel-pad" aria-labelledby="h-saved">
@@ -103,14 +93,4 @@ export default function DocumentsPage({ sid: initialSid }: { sid?: string }) {
       </div>
     </Shell>
   );
-}
-
-function DocRow({ d, numbers, desktop, opening, act }: { d: DocumentFile; numbers?: number[]; desktop: boolean; opening: string | null; act: (d: DocumentFile, a: "open" | "download") => void }) {
-  return <div className="doc-row" data-testid={`doc-${d.id}`}>
-    <span className={`doc-fmt ${d.format}`}>{d.format.toUpperCase()}</span>
-    <div style={{ minWidth: 0, flex: 1 }}><b title={d.name}>{d.name}</b>
-      <small>{fmtTime(d.createdAt)} · {(d.byteLength / 1024).toFixed(1)} KB{numbers?.length ? ` · programs ${numbers.map(pad).join(", ")}` : ""}</small></div>
-    {desktop && <button className="btn small" disabled={opening === d.id + "open"} onClick={() => act(d, "open")} data-testid={`button-open-doc-${d.id}`}><ExternalLink size={12} /> Open</button>}
-    <button className="btn small" disabled={opening === d.id + "download"} onClick={() => act(d, "download")} data-testid={`button-download-doc-${d.id}`}><Download size={12} /> {desktop ? "Save as" : "Download"}</button>
-  </div>;
 }

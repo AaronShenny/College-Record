@@ -14,8 +14,12 @@ import TemplatePage from "@/pages/template";
 import ImportPage from "@/pages/import";
 
 function Routes() {
-  const { workspace, loadError, reload, runtime, cloud } = useStore();
-  const parts = useHashRoute();
+  const { workspace, loadError, reload, runtime, cloud, drafts, notify } = useStore();
+  const parts = useHashRoute(() => {
+    if (!drafts.size) return true;
+    notify("Fix the highlighted draft fields before changing pages. Your entered values are still here.", "error");
+    return false;
+  });
   if ((runtime as { requiresSignIn?: boolean } | null)?.requiresSignIn && (!cloud || !cloud.connected)) return <DesktopSignIn />;
   if (loadError) {
     return <div className="crm" style={{ display: "grid", placeItems: "center", padding: 24 }}>

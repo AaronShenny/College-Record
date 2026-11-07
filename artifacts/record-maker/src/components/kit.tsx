@@ -1,11 +1,22 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 
-export function useHashRoute(): string[] {
+export function useHashRoute(canLeave?: () => boolean): string[] {
   const read = () => (window.location.hash.replace(/^#/, "") || "/").split("/").filter(Boolean);
   const [parts, setParts] = useState<string[]>(read);
+  const guard = useRef(canLeave);
+  guard.current = canLeave;
   useEffect(() => {
-    const f = () => { setParts(read()); window.scrollTo(0, 0); };
+    let acceptedHash = window.location.hash || "#/";
+    const f = () => {
+      if (window.location.hash === acceptedHash) return;
+      if (guard.current && !guard.current()) {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search + acceptedHash);
+        return;
+      }
+      acceptedHash = window.location.hash || "#/";
+      setParts(read()); window.scrollTo(0, 0);
+    };
     window.addEventListener("hashchange", f);
     return () => window.removeEventListener("hashchange", f);
   }, []);

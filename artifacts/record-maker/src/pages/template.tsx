@@ -83,7 +83,7 @@ export default function TemplatePage({ sid }: { sid: string }) {
   };
 
   return (
-    <Shell active="subjects" crumb={`${subject.name} · Template`}>
+    <Shell active="subjects" crumb={<><a href={href(`/subject/${subject.id}`)} className="crumb-link" data-testid="link-crumb-subject">{subject.name}</a> / <strong>Template & mapping</strong></>}>
       <div className="page">
         <a className="btn small ghost" href={href(`/subject/${sid}`)} style={{ marginBottom: 12, paddingLeft: 0 }} data-testid="link-back-subject"><ArrowLeft size={13} /> {subject.name}</a>
         <PageHead eyebrow={`${subject.name} · subject setup`} title="Template & field mapping"

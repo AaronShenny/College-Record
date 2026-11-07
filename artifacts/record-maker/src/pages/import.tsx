@@ -149,7 +149,7 @@ export default function ImportPage({ sid }: { sid: string }) {
   const desktop = runtime?.mode === "desktop";
 
   return (
-    <Shell active="subjects" crumb={`${subject.name} · Import`}>
+    <Shell active="subjects" crumb={<><a href={href(`/subject/${subject.id}`)} className="crumb-link" data-testid="link-crumb-subject">{subject.name}</a> / <strong>Import</strong></>}>
       <div className="page">
         <a className="btn small ghost" href={href(`/subject/${sid}`)} style={{ marginBottom: 12, paddingLeft: 0 }} data-testid="link-back-subject"><ArrowLeft size={13} /> {subject.name}</a>
         <PageHead eyebrow={`${subject.name} · reviewed import`} title="Import questions"

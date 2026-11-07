@@ -9,5 +9,6 @@ export const modules: ModuleMap = {
   "./components/mockups/college-record-maker/SignIn.tsx": () => import("../components/mockups/college-record-maker/SignIn.tsx"),
   "./components/mockups/college-record-maker/Subject.tsx": () => import("../components/mockups/college-record-maker/Subject.tsx"),
   "./components/mockups/college-record-maker/TemplateMapping.tsx": () => import("../components/mockups/college-record-maker/TemplateMapping.tsx"),
-  "./components/mockups/college-record-maker/Trash.tsx": () => import("../components/mockups/college-record-maker/Trash.tsx")
+  "./components/mockups/college-record-maker/Trash.tsx": () => import("../components/mockups/college-record-maker/Trash.tsx"),
+  "./components/mockups/record-redesign/Current.tsx": () => import("../components/mockups/record-redesign/Current.tsx")
 };

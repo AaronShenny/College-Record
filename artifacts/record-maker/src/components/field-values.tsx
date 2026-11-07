@@ -23,7 +23,7 @@ export function FieldValue({ def, value, onChange, readOnly, origin }: { def: Fi
       </div>
       {def.type === "text" ? (
         readOnly ? <div className="fv-readonly">{empty ? <span className="muted">Not set</span> : value}</div> :
-          <textarea rows={2} value={value ?? ""} maxLength={100000} onChange={e => onChange?.(e.target.value || undefined)} placeholder={def.required ? "Required for generation" : "Optional"} data-testid={`input-field-${def.id}`} />
+          <textarea rows={2} aria-label={def.label} value={value ?? ""} maxLength={100000} onChange={e => onChange?.(e.target.value || undefined)} placeholder={def.required ? "Required for generation" : "Optional"} data-testid={`input-field-${def.id}`} />
       ) : (
         <div className="fv-image">
           {value && IMG.test(value) ? <img src={value} alt={def.label} /> : <span className="fv-noimg">No image</span>}

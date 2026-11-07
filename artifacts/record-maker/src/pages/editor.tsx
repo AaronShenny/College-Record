@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, Check, ClipboardPaste, FilePlus, FileUp, ImagePlus, Plus, RefreshCw, Save, Trash2, Type, X } from "lucide-react";
-import { Shell, SaveIndicator } from "@/components/shell";
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, Check, ChevronRight, ClipboardPaste, FilePlus, FileText, FileUp, ImagePlus, Plus, RefreshCw, Trash2, Type, X } from "lucide-react";
+import { Shell } from "@/components/shell";
+import { GenerateDialog } from "@/components/generate-dialog";
 import { EmptyState, href } from "@/components/kit";
 import { ProgramDialog } from "@/components/dialogs";
 import { bridge } from "@/lib/bridge";
 import type { OutputItem, Program, SourceFile, Subject } from "@/lib/contracts";
 import { FieldValue, setValue } from "@/components/field-values";
-import { cloudLabel, activePrograms, errMsg, mapProgram, newId, pad, programChecks, programState, useStore } from "@/hooks/use-workspace";
+import { activePrograms, errMsg, mapProgram, newId, pad, programChecks, programState, useStore } from "@/hooks/use-workspace";
 
 const ROLES = ["Main code", "Helper code", "Header", "Input data", "Unassigned"];
 const MAX_CODE = 1_000_000;
@@ -44,7 +45,7 @@ export default function Editor({ sid, pid }: { sid: string; pid: string }) {
 }
 
 function EditorBody({ subject, program }: { subject: Subject; program: Program }) {
-  const { update, saveNow, runtime, notify, setDraft, cloud } = useStore();
+  const { update, runtime, notify, setDraft } = useStore();
   const [addOpen, setAddOpen] = useState(false);
   const progs = activePrograms(subject);
   const idx = progs.findIndex(p => p.id === program.id);
@@ -131,140 +132,134 @@ function EditorBody({ subject, program }: { subject: Subject; program: Program }
   const moveOutput = (i: number, d: number) => patch(p => { const j = i + d; if (j < 0 || j >= p.outputs.length) return p; const a = [...p.outputs]; [a[i], a[j]] = [a[j]!, a[i]!]; return { ...p, outputs: a }; });
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
+  const [genOpen, setGenOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const checks = programChecks(program, subject);
+  const missing = checks.filter(c => !c.ok);
+  const progFields = (subject.fields ?? []).filter(f => f.scope === "program");
+  const subjFields = (subject.fields ?? []).filter(f => f.scope === "subject");
+  const jump = (label: string) => {
+    const l = label.toLowerCase();
+    const custom = progFields.find(f => f.label === label);
+    const target = custom ? `field-value-${custom.id}` : l.startsWith("title") ? "input-title" : l.startsWith("question") ? "input-question" : l.includes("output") ? "button-paste-top" : l.includes("source") ? "h-sources" : "sec-more";
+    if (custom || target === "input-question" || target === "sec-more") setMoreOpen(true);
+    requestAnimationFrame(() => { const el = document.querySelector<HTMLElement>(`[data-testid="${target}"], #${target}`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); const f = el?.matches("input,textarea,button") ? el : el?.querySelector<HTMLElement>("input,textarea,button"); f?.focus({ preventScroll: true }); });
+  };
+
   return (
-    <Shell active="subjects" crumb={subject.name}>
-      <div className="page" style={{ paddingTop: 22 }}>
-        <div className="editor-heading">
-          <div style={{ minWidth: 0 }}>
-            <div className="eyebrow">{subject.name} · Program {pad(program.number)}{idx >= 0 ? ` (${idx + 1} of ${progs.length})` : ""}</div>
-            <h1 data-testid="text-program-title">{program.title || "Untitled program"}</h1>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <span className={`badge ${st.tone}`}>{st.label}</span>
-              {program.outputMayBeStale && <>
-                <span className="hint" style={{ margin: 0 }}>Source changed after output was added. This warning does not block anything.</span>
-                <button className="btn small ghost" onClick={() => patch(p => ({ ...p, outputMayBeStale: false }))} data-testid="button-mark-current"><Check size={12} /> Output is still current</button>
-              </>}
+    <Shell active="subjects" crumb={<><a href={href("/")} className="crumb-link">Subjects</a> / <a href={href(`/subject/${subject.id}`)} className="crumb-link" data-testid="link-back-subject">{subject.name}</a> / <strong>Program {pad(program.number)}</strong></>}>
+      <div className="workspace">
+        <aside className="program-list-panel" aria-label="Programs in this subject">
+          <div className="program-list-title"><a href={href(`/subject/${subject.id}`)} className="kicker" data-testid="link-subject-overview">{subject.name}</a><span className="badge neutral">{progs.length}</span></div>
+          {progs.map(p => { const t = programState(p, subject).tone; return (
+            <a key={p.id} className={`program-list-row ${p.id === program.id ? "selected" : ""}`} href={href(`/program/${subject.id}/${p.id}`)} aria-current={p.id === program.id ? "page" : undefined} data-testid={`link-program-${p.id}`}>
+              <span className="list-no">{pad(p.number)}</span><span>{p.title || "Untitled"}</span><i className={`list-status ${t === "good" ? "" : t === "warn" ? "status-warn" : "status-empty"}`} aria-label={programState(p, subject).label} />
+            </a>); })}
+          <button className="add-program-link" onClick={() => setAddOpen(true)} data-testid="button-add-program"><Plus size={13} /> Add program</button>
+          <div className="list-setup">
+            <a href={href(`/template/${subject.id}`)}>Template & mapping</a>
+            <a href={href(`/import/${subject.id}`)}>Import</a>
+            <a href={href(`/documents/${subject.id}`)}>Saved versions</a>
+          </div>
+        </aside>
+
+        <div className="editor-center">
+          <div className="editor-bar">
+            <div className="title-line">
+              <label className="num-field"><span className="sr-only">Program number</span><span aria-hidden="true">No.</span>
+                <input type="number" min={1} max={9999} value={numText} aria-invalid={!!numErr} data-testid="input-number"
+                  onChange={e => { const v = e.target.value; setNumText(v); const k = Number(v); if (/^\d+$/.test(v) && k >= 1 && k <= 9999 && !progs.some(p => p.id !== program.id && p.number === k)) patch(p => ({ ...p, number: k })); }} /></label>
+              <label className="title-field"><span className="sr-only">Program title</span>
+                <input type="text" maxLength={500} value={program.title} onChange={e => patch(p => ({ ...p, title: e.target.value }))} placeholder="Program title" data-testid="input-title" /></label>
+              <h1 className="sr-only" data-testid="text-program-title">{program.title || "Untitled program"}</h1>
+            </div>
+            <div className="bar-actions">
+              <button className="btn paste" onClick={pasteImage} disabled={busy === "paste"} data-testid="button-paste-top"><ClipboardPaste size={14} /> {busy === "paste" ? "Reading…" : "Paste screenshot"}</button>
+              <button className="btn" onClick={() => setGenOpen(true)} data-testid="button-generate-program"><FileText size={14} /> Generate</button>
+              {next ? <a className="btn primary" href={href(`/program/${subject.id}/${next.id}`)} data-testid="link-next-program">Next {pad(next.number)} <ArrowRight size={13} /></a>
+                : <button className="btn primary" onClick={() => setAddOpen(true)} data-testid="button-next-new">New program <Plus size={13} /></button>}
             </div>
           </div>
-        </div>
+          {numErr && <div className="err" role="alert">Program number: {numErr} Not saved until fixed.</div>}
 
-        <div className="editor-toolbar">
-          <a className="btn small" href={href(`/subject/${subject.id}`)} data-testid="link-back-subject"><ArrowLeft size={13} /> Subject programs</a>
-          <span className="editor-nav">
-            {prev ? <a className="btn small ghost" href={href(`/program/${subject.id}/${prev.id}`)} data-testid="link-prev-program"><ArrowLeft size={12} /> Previous <b>{pad(prev.number)}</b></a> : <button className="btn small ghost" disabled><ArrowLeft size={12} /> Previous</button>}
-            {next ? <a className="btn small ghost" href={href(`/program/${subject.id}/${next.id}`)} data-testid="link-next-program">Next <b>{pad(next.number)}</b> <ArrowRight size={12} /></a> : <button className="btn small ghost" disabled>Next <ArrowRight size={12} /></button>}
-          </span>
-          <div className="save-status">
-            <SaveIndicator />
-            <span className="muted" data-testid="status-editor-drive"><i className="dot" />{cloudLabel(cloud).text}</span>
-            <button className="btn small primary" onClick={saveNow} data-testid="button-save-now"><Save size={12} /> Save Now</button>
+          <div className="state-line">
+            <span className={`badge ${st.tone}`} data-testid="status-program">{st.label}</span>
+            {missing.map(c => <button key={c.label} className="miss-chip" onClick={() => jump(c.label)} data-testid={`button-missing-${c.label.toLowerCase().replace(/\W+/g, "-")}`}><AlertTriangle size={11} /> {c.label}</button>)}
+            {program.outputMayBeStale && <span className="stale">Code changed after output. <button className="linkish" onClick={() => patch(p => ({ ...p, outputMayBeStale: false }))} data-testid="button-mark-current"><Check size={11} /> Output is still current</button></span>}
+            <span style={{ flex: 1 }} />
+            {prev && <a className="btn small ghost" href={href(`/program/${subject.id}/${prev.id}`)} data-testid="link-prev-program"><ArrowLeft size={12} /> {pad(prev.number)}</a>}
+            <span className="muted" style={{ fontSize: 11 }}>{idx + 1} of {progs.length}</span>
           </div>
-        </div>
 
-        <div className="editor-layout">
-          <aside className="program-list-panel" aria-label="Programs in this subject">
-            <div className="program-list-title"><div className="kicker">Program list</div><span className="badge neutral">{progs.length}</span></div>
-            {progs.map(p => { const t = programState(p, subject).tone; return (
-              <a key={p.id} className={`program-list-row ${p.id === program.id ? "selected" : ""}`} href={href(`/program/${subject.id}/${p.id}`)} aria-current={p.id === program.id ? "page" : undefined}>
-                <span className="list-no">{pad(p.number)}</span><span>{p.title || "Untitled"}</span><i className={`list-status ${t === "good" ? "" : t === "warn" ? "status-warn" : "status-empty"}`} aria-hidden="true" />
-              </a>); })}
-            <button className="add-program-link" onClick={() => setAddOpen(true)} data-testid="button-add-program"><Plus size={13} /> Add program</button>
-            <div className="inherited-card"><span className="kicker">Whole-record values</span><b>Course code</b><small>{subject.courseCode || "Not set"} · from subject</small><b>Semester</b><small>{subject.semester}</small></div>
-          </aside>
+          <details className="more" id="sec-more" open={moreOpen} onToggle={e => setMoreOpen((e.currentTarget as HTMLDetailsElement).open)}>
+            <summary data-testid="toggle-details"><ChevronRight size={14} className="chev" /> Question{progFields.length ? ` & ${progFields.length} field${progFields.length > 1 ? "s" : ""}` : ""}
+              <span className="summary-peek">{program.question ? program.question.slice(0, 90) : "No question yet"}</span></summary>
+            <div className="more-body">
+              <label><span className="field-label">Question</span>
+                <textarea rows={3} maxLength={100000} value={program.question} onChange={e => patch(p => ({ ...p, question: e.target.value }))} placeholder="Paste the question from your lab manual" data-testid="input-question" /></label>
+              {progFields.length > 0 && <div className="fv-grid">{progFields.map(f => <FieldValue key={f.id} def={f} value={program.values?.[f.id]} onChange={v => patch(p => ({ ...p, values: setValue(p.values, f.id, v) }))} />)}</div>}
+              <div className="inherited"><span className="kicker">From subject</span> Course code {subject.courseCode || "not set"} · Semester {subject.semester}
+                {subjFields.map(f => <span key={f.id}> · {f.label}: {subject.values?.[f.id] ? (f.type === "image" ? "image set" : subject.values[f.id]!.slice(0, 40)) : "not set"}</span>)}</div>
+            </div>
+          </details>
 
-          <div className="editor-center">
-            <section className="panel" aria-labelledby="h-details">
-              <div className="block-head"><div><h2 id="h-details">Program details</h2><p className="hint">Title and question can stay incomplete; they are saved as drafts.</p></div></div>
-              <div className="detail-fields">
-                <label><span className="field-label">Program number <span className="required-star">*</span></span>
-                  <input type="number" min={1} max={9999} value={numText} aria-invalid={!!numErr} data-testid="input-number"
-                    onChange={e => { const v = e.target.value; setNumText(v); const k = Number(v); if (/^\d+$/.test(v) && k >= 1 && k <= 9999 && !progs.some(p => p.id !== program.id && p.number === k)) patch(p => ({ ...p, number: k })); }} />
-                  {numErr && <div className="err">{numErr} Not saved until fixed.</div>}</label>
-                <label><span className="field-label">Program title</span>
-                  <input type="text" maxLength={500} value={program.title} onChange={e => patch(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Binary search tree traversal" data-testid="input-title" /></label>
-                <label className="question-field"><span className="field-label">Question</span>
-                  <textarea rows={3} maxLength={100000} value={program.question} onChange={e => patch(p => ({ ...p, question: e.target.value }))} placeholder="Paste the question exactly as given in your lab manual" data-testid="input-question" /></label>
+          <section className="panel" aria-labelledby="h-sources-title" id="h-sources">
+            <div className="block-head">
+              <h2 id="h-sources-title">Code</h2>
+              <div className="block-actions">
+                <button className="btn small" onClick={newBlank} data-testid="button-new-source"><FilePlus size={13} /> New file</button>
+                <button className="btn small" onClick={importSource} disabled={busy === "import"} data-testid="button-import-source"><FileUp size={13} /> {busy === "import" ? "Opening…" : "Import file"}</button>
               </div>
-            </section>
+            </div>
+            <input ref={srcInput} type="file" multiple hidden onChange={e => { void onSourceFiles(e.target.files); e.target.value = ""; }} />
+            <input ref={replaceInput} type="file" hidden onChange={e => { void onReplaceFile(e.target.files); e.target.value = ""; }} />
+            {srcErr && <div className="notice red" role="alert"><AlertTriangle size={14} /><span style={{ flex: 1 }}>{srcErr}</span><button className="icon-btn" aria-label="Dismiss" onClick={() => setSrcErr(null)}><X size={12} /></button></div>}
+            {program.sources.length === 0 && <button className="drop-empty" onClick={newBlank} data-testid="button-start-code"><FilePlus size={16} /> Start main.c and paste your code</button>}
+            {program.sources.map(s => <SourceCard key={s.id} s={s} busy={busy === "replace-" + s.id} confirming={confirmRemove === s.id}
+              onChange={(fn, stale) => patch(p => ({ ...p, sources: p.sources.map(x => x.id === s.id ? fn(x) : x) }), stale)}
+              onReplace={() => void replaceSource(s.id)} onAskRemove={() => setConfirmRemove(s.id)} onCancelRemove={() => setConfirmRemove(null)}
+              onRemove={() => { patch(p => ({ ...p, sources: p.sources.filter(x => x.id !== s.id) }), true); setConfirmRemove(null); }} />)}
+          </section>
 
-            {(subject.fields ?? []).length > 0 && <section className="panel panel-pad" aria-labelledby="h-fields">
-              <h2 id="h-fields" style={{ marginTop: 0 }}>Template fields</h2>
-              <div className="fv-grid">
-                {(subject.fields ?? []).filter(f => f.scope === "program").map(f => <FieldValue key={f.id} def={f} value={program.values?.[f.id]} onChange={v => patch(p => ({ ...p, values: setValue(p.values, f.id, v) }))} />)}
-                {(subject.fields ?? []).filter(f => f.scope === "subject").map(f => <FieldValue key={f.id} def={f} value={subject.values?.[f.id]} readOnly origin="From subject" />)}
+          <section className="panel" aria-labelledby="h-outputs">
+            <div className="block-head">
+              <h2 id="h-outputs">Output <span className="muted count">{program.outputs.filter(o => o.include).length} of {program.outputs.length} included</span></h2>
+              <div className="block-actions">
+                <button className="btn small paste" onClick={pasteImage} disabled={busy === "paste"} data-testid="button-paste-image"><ClipboardPaste size={13} /> {busy === "paste" ? "Reading…" : "Paste screenshot"}</button>
+                <button className="btn small" onClick={() => imgInput.current?.click()} data-testid="button-add-image"><ImagePlus size={13} /> Image file</button>
+                <button className="btn small" onClick={() => addOutput({ id: newId(), kind: "text", name: `Output text ${pad(program.outputs.length + 1)}`, text: "", include: true })} data-testid="button-add-text"><Type size={13} /> Text</button>
               </div>
-            </section>}
-
-            <section className="panel" aria-labelledby="h-sources">
-              <div className="block-head">
-                <div><h2 id="h-sources">Source files</h2><p className="hint">Your own code, stored as independent copies. Nothing is compiled or run.</p></div>
-                <div className="block-actions">
-                  <button className="btn small" onClick={newBlank} data-testid="button-new-source"><FilePlus size={13} /> Paste code</button>
-                  <button className="btn small" onClick={importSource} disabled={busy === "import"} data-testid="button-import-source"><FileUp size={13} /> {busy === "import" ? "Opening…" : "Import file"}</button>
-                </div>
-              </div>
-              <input ref={srcInput} type="file" multiple hidden onChange={e => { void onSourceFiles(e.target.files); e.target.value = ""; }} />
-              <input ref={replaceInput} type="file" hidden onChange={e => { void onReplaceFile(e.target.files); e.target.value = ""; }} />
-              {srcErr && <div className="notice red" role="alert"><AlertTriangle size={14} /><span style={{ flex: 1 }}>{srcErr}</span><button className="icon-btn" aria-label="Dismiss" onClick={() => setSrcErr(null)}><X size={12} /></button></div>}
-              {program.sources.length === 0 && <div className="notice blue">No source files yet. Use <b>Paste code</b> to type or paste into a new file, or <b>Import file</b> to copy one from your computer.</div>}
-              {program.sources.map(s => <SourceCard key={s.id} s={s} busy={busy === "replace-" + s.id} confirming={confirmRemove === s.id}
-                onChange={(fn, stale) => patch(p => ({ ...p, sources: p.sources.map(x => x.id === s.id ? fn(x) : x) }), stale)}
-                onReplace={() => void replaceSource(s.id)} onAskRemove={() => setConfirmRemove(s.id)} onCancelRemove={() => setConfirmRemove(null)}
-                onRemove={() => { patch(p => ({ ...p, sources: p.sources.filter(x => x.id !== s.id) }), true); setConfirmRemove(null); }} />)}
-            </section>
-
-            <section className="panel" aria-labelledby="h-outputs">
-              <div className="block-head">
-                <div><h2 id="h-outputs">Supplied output</h2><p className="hint">Your screenshots and text, kept in the order shown.</p></div>
-                <div className="block-actions">
-                  <button className="btn small paste" onClick={pasteImage} disabled={busy === "paste"} data-testid="button-paste-image"><ClipboardPaste size={13} /> {busy === "paste" ? "Reading…" : "PASTE"}</button>
-                  <button className="btn small" onClick={() => imgInput.current?.click()} data-testid="button-add-image"><ImagePlus size={13} /> Add Image</button>
-                  <button className="btn small" onClick={() => addOutput({ id: newId(), kind: "text", name: `Output text ${pad(program.outputs.length + 1)}`, text: "", include: true })} data-testid="button-add-text"><Type size={13} /> Add Text</button>
-                </div>
-              </div>
-              <input ref={imgInput} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={e => { void onImages(e.target.files); e.target.value = ""; }} />
-              {outErr && <div className="notice red" role="alert" style={{ marginBottom: 10 }}><AlertTriangle size={14} /><span style={{ flex: 1 }}>{outErr}</span><button className="icon-btn" aria-label="Dismiss" onClick={() => setOutErr(null)}><X size={12} /></button></div>}
-              {program.outputs.length === 0 && <div className="notice blue">No output yet. Take a screenshot of your program running, then press <b>PASTE</b>, or add an image file (PNG, JPEG, WebP up to 8 MB) or text.</div>}
-              <div className="output-list">
-                {program.outputs.map((o, i) => (
-                  <div key={o.id} className={`output-item ${o.include ? "" : "excluded"}`} data-testid={`output-${o.id}`}>
-                    <span className="output-order">{pad(i + 1)}</span>
-                    {o.kind === "image" ? <div className="output-thumb"><img src={o.dataUrl} alt={o.name || `Output image ${i + 1}`} /></div> : <div className="output-thumb text">TEXT</div>}
-                    <div className="output-meta">
-                      <label><span className="sr-only">Output name</span><input type="text" maxLength={500} value={o.name} onChange={e => patch(p => ({ ...p, outputs: p.outputs.map(x => x.id === o.id ? { ...x, name: e.target.value } : x) }))} data-testid={`input-output-name-${o.id}`} /></label>
-                      {o.kind === "text" && <label><span className="sr-only">Output text</span><textarea value={o.text} maxLength={500000} spellCheck={false} placeholder="Paste console output here" onChange={e => { const v = e.target.value; patch(p => ({ ...p, outputs: p.outputs.map(x => x.id === o.id && x.kind === "text" ? { ...x, text: v } : x) })); }} /></label>}
-                      <label className="inclusion"><input type="checkbox" className="check" checked={o.include} onChange={e => patch(p => ({ ...p, outputs: p.outputs.map(x => x.id === o.id ? { ...x, include: e.target.checked } : x) }))} /> Include in record</label>
-                    </div>
-                    <div className="output-actions">
-                      {confirmRemove === o.id ? <span className="confirm-inline">Remove?
-                        <button className="btn small danger" onClick={() => { patch(p => ({ ...p, outputs: p.outputs.filter(x => x.id !== o.id) })); setConfirmRemove(null); }}>Remove</button>
-                        <button className="btn small" onClick={() => setConfirmRemove(null)}>Keep</button></span> : <>
-                        <button className="icon-btn" aria-label="Move output up" disabled={i === 0} onClick={() => moveOutput(i, -1)}><ArrowDown size={13} style={{ transform: "rotate(180deg)" }} /></button>
-                        <button className="icon-btn" aria-label="Move output down" disabled={i === program.outputs.length - 1} onClick={() => moveOutput(i, 1)}><ArrowDown size={13} /></button>
-                        <button className="icon-btn" aria-label="Remove output" onClick={() => setConfirmRemove(o.id)}><Trash2 size={13} /></button></>}
-                    </div>
+            </div>
+            <input ref={imgInput} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={e => { void onImages(e.target.files); e.target.value = ""; }} />
+            {outErr && <div className="notice red" role="alert" style={{ marginBottom: 10 }}><AlertTriangle size={14} /><span style={{ flex: 1 }}>{outErr}</span><button className="icon-btn" aria-label="Dismiss" onClick={() => setOutErr(null)}><X size={12} /></button></div>}
+            {program.outputs.length === 0 && <p className="hint">Take a screenshot (Win + Shift + S), then Paste screenshot. PNG, JPEG or WebP up to 8 MB.</p>}
+            <div className="output-list">
+              {program.outputs.map((o, i) => (
+                <div key={o.id} className={`output-item ${o.include ? "" : "excluded"}`} data-testid={`output-${o.id}`}>
+                  <span className="output-order">{pad(i + 1)}</span>
+                  {o.kind === "image" ? <div className="output-thumb"><img src={o.dataUrl} alt={o.name || `Output image ${i + 1}`} /></div> : <div className="output-thumb text">TEXT</div>}
+                  <div className="output-meta">
+                    <label><span className="sr-only">Output name</span><input type="text" maxLength={500} value={o.name} onChange={e => patch(p => ({ ...p, outputs: p.outputs.map(x => x.id === o.id ? { ...x, name: e.target.value } : x) }))} data-testid={`input-output-name-${o.id}`} /></label>
+                    {o.kind === "text" && <label><span className="sr-only">Output text</span><textarea value={o.text} maxLength={500000} spellCheck={false} placeholder="Paste console output here" onChange={e => { const v = e.target.value; patch(p => ({ ...p, outputs: p.outputs.map(x => x.id === o.id && x.kind === "text" ? { ...x, text: v } : x) })); }} /></label>}
+                    <label className="inclusion"><input type="checkbox" className="check" checked={o.include} onChange={e => patch(p => ({ ...p, outputs: p.outputs.map(x => x.id === o.id ? { ...x, include: e.target.checked } : x) }))} /> Include in record</label>
                   </div>
-                ))}
-              </div>
-            </section>
-          </div>
-
-          <aside className="editor-right" aria-label="Record checklist">
-            <div><div className="kicker">Content summary</div>
-              <p style={{ margin: "6px 0 0" }}><b>{subject.name}</b><br />Program {pad(program.number)}</p></div>
-            <div><div className="kicker">Sources included</div>
-              {program.sources.filter(s => s.include).length === 0 ? <p className="hint">None</p> : program.sources.filter(s => s.include).map(s => <div key={s.id} style={{ marginTop: 4 }}><b>{s.role}</b> <span className="mono muted">{s.name}</span></div>)}</div>
-            <div><div className="kicker">Output items included</div><p style={{ margin: "4px 0 0" }}>{program.outputs.filter(o => o.include).length} of {program.outputs.length}</p></div>
-            <div className="panel" style={{ padding: 10 }}>
-              <div className="kicker">Checklist</div>
-              {programChecks(program, subject).map(c => <div key={c.label} className={`check-row ${c.ok ? "ok" : "miss"}`}>{c.ok ? <Check size={13} /> : <AlertTriangle size={13} />}{c.label}</div>)}
-              {program.outputMayBeStale && <div className="check-row miss"><RefreshCw size={13} />Output may be outdated <small className="muted">(non-blocking)</small></div>}
+                  <div className="output-actions">
+                    {confirmRemove === o.id ? <span className="confirm-inline">Remove?
+                      <button className="btn small danger" onClick={() => { patch(p => ({ ...p, outputs: p.outputs.filter(x => x.id !== o.id) })); setConfirmRemove(null); }}>Remove</button>
+                      <button className="btn small" onClick={() => setConfirmRemove(null)}>Keep</button></span> : <>
+                      <button className="icon-btn" aria-label="Move output up" disabled={i === 0} onClick={() => moveOutput(i, -1)}><ArrowDown size={13} style={{ transform: "rotate(180deg)" }} /></button>
+                      <button className="icon-btn" aria-label="Move output down" disabled={i === program.outputs.length - 1} onClick={() => moveOutput(i, 1)}><ArrowDown size={13} /></button>
+                      <button className="icon-btn" aria-label="Remove output" onClick={() => setConfirmRemove(o.id)}><Trash2 size={13} /></button></>}
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="notice blue" style={{ fontSize: 11 }}>This is a content summary, not a Word preview. Generate the Word record from Documents.</div>
-          </aside>
+          </section>
+          {next && <a className="next-foot" href={href(`/program/${subject.id}/${next.id}`)} data-testid="link-next-program-foot">Next: <b className="mono">{pad(next.number)}</b> {next.title || "Untitled"} <ArrowRight size={14} /></a>}
         </div>
       </div>
       <ProgramDialog open={addOpen} onClose={() => setAddOpen(false)} subject={subject} />
+      <GenerateDialog open={genOpen} onClose={() => setGenOpen(false)} subject={subject} programIds={[program.id]} />
     </Shell>
   );
 }
