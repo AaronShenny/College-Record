@@ -7,6 +7,12 @@ import { desktopRegistration } from "./google-registration.mjs";
 
 type Identity = { sub: string; email: string; name: string };
 type Vault = { available(): boolean; encrypt(value: string): Buffer; decrypt(value: Buffer): string };
+export class CredentialUnlockError extends Error {
+  constructor() {
+    super("Saved Google credentials could not be unlocked. Cached files were preserved.");
+    this.name = "CredentialUnlockError";
+  }
+}
 export function collegeIdentity(claims: TokenPayload | undefined): Identity {
   if (!claims?.sub || claims.email_verified !== true || claims.hd !== "rajagiri.edu" || !claims.email?.toLowerCase().endsWith("@rajagiri.edu")) {
     throw new Error("Sign in with a verified rajagiri.edu college Google account.");
@@ -35,7 +41,7 @@ export class GoogleAccount {
       return JSON.parse(this.vault.decrypt(bytes));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-      throw new Error("Saved Google credentials could not be unlocked. Cached files were preserved.");
+      throw new CredentialUnlockError();
     }
   }
   async initialize() {
@@ -47,6 +53,15 @@ export class GoogleAccount {
       this.client.setCredentials(stored.tokens as Credentials);
       this.identity = stored.identity;
     }
+  }
+  /** Called only after explicit recovery confirmation. Never touches workspaces. */
+  async recoverLockedCredentials() {
+    const backup = `${this.directory}.recovery-${randomBytes(12).toString("hex")}`;
+    // Rename before changing memory: if preservation fails, recovery fails closed.
+    await fs.rename(this.directory, backup);
+    this.client = undefined;
+    this.identity = undefined;
+    this.config = undefined;
   }
   async configure(json: unknown) {
     const config = desktopRegistration(json);

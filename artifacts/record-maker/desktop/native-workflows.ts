@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { GoogleAccount } from "./google-auth";
+import { CredentialUnlockError, GoogleAccount } from "./google-auth";
 import { DriveSync, DriveFiles } from "./drive-sync";
 import { WorkspaceStore } from "./store";
 import { PythonWorker } from "./worker-client";
@@ -41,7 +41,21 @@ export class NativeWorkflows {
     this.documents = new DocumentService(root, this.worker);
   }
   async initialize() {
-    await this.account.initialize();
+    try {
+      await this.account.initialize();
+    } catch (error) {
+      if (!(error instanceof CredentialUnlockError)) throw error;
+      const choice = await dialog.showMessageBox({
+        type: "warning",
+        title: "Saved Google sign-in could not be unlocked",
+        message: "Your cached records have not been deleted.",
+        detail: "Windows could not unlock the saved Google credentials. Close the app and try again under the original Windows account, or recover sign-in. Recovery preserves the old encrypted credentials separately and does not delete records, pending edits, generated documents, or Drive files. Sign in again with the SAME college Google account to reopen its local records. You will need an internet connection.",
+        buttons: ["Close without changes", "Recover sign-in"],
+        defaultId: 0, cancelId: 0, noLink: true,
+      });
+      if (choice.response !== 1) throw error;
+      await this.account.recoverLockedCredentials();
+    }
     if (!this.account.configured) {
       try {
         const registration = app.isPackaged
