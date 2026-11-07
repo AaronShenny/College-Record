@@ -36,9 +36,15 @@ export default function SettingsPage() {
 
   return (
     <Shell active="settings" crumb="Settings">
-      <div className="page">
-        <PageHead eyebrow="Preferences" title="Settings" description="What this build can and cannot do, shown honestly." />
-        <div className="settings-grid">
+      <div className="page simple-settings">
+        <PageHead eyebrow="Your workspace" title="Settings" description="Account and sync, in one place." />
+        {runtimeError && <div className="notice red" role="alert"><AlertTriangle size={14} /><span>Desktop connection unavailable: {runtimeError}</span></div>}
+        <CloudPanel />
+        <UpdatesPanel />
+        <details className="settings-details" data-testid="details-settings">
+          <summary>Details</summary>
+          <p className="hint">Microsoft Word is required for PDF export. Editing and ordinary Word document generation work without it.</p>
+          <div className="settings-grid">
           <section className="panel panel-pad">
             <div className="section-title"><h2>Runtime</h2>{runtime && <span className={`badge ${runtime.mode === "desktop" ? "good" : "warn"}`}>{runtime.mode === "desktop" ? "Installed desktop" : "Browser preview"}</span>}</div>
             {runtimeError ? <div className="notice red"><AlertTriangle size={14} />Runtime could not be read: {runtimeError}</div> : !runtime ? <div className="skel" style={{ height: 110 }} /> : (
@@ -53,8 +59,6 @@ export default function SettingsPage() {
               </dl>
             )}
           </section>
-
-          <CloudPanel />
 
           <section className="panel panel-pad">
             <div className="section-title"><h2><Cpu size={16} style={{ verticalAlign: "-2px" }} /> Python helper</h2></div>
@@ -82,8 +86,8 @@ export default function SettingsPage() {
             <div style={{ marginTop: 12 }}><JobView job={snap} idleText="No inspection run yet." /></div>
           </section>
 
-          <UpdatesPanel />
-        </div>
+          </div>
+        </details>
       </div>
     </Shell>
   );

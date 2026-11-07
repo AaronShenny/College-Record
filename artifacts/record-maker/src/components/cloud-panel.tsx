@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Cloud, FileKey, LogIn, LogOut, RefreshCw, RotateCcw } from "lucide-react";
+import { AlertTriangle, FileKey, LogIn, LogOut, RefreshCw, RotateCcw } from "lucide-react";
 import { Modal, fmtTime } from "./kit";
 import { checkUpdates, configureGoogle, connectDrive, logoutCleanup, restartForUpdate, syncDrive, type CloudStatus } from "@/lib/workflow-api";
 import { cloudLabel, errMsg, useStore } from "@/hooks/use-workspace";
@@ -48,27 +48,39 @@ export function CloudPanel() {
   const cloudBusy = !!busy || !!status?.busy;
 
   return (
-    <section className="panel panel-pad" data-testid="panel-cloud">
-      <div className="section-title"><h2><Cloud size={16} style={{ verticalAlign: "-2px" }} /> Account and Drive</h2>
-        {status ? <span className={`badge ${status.connected ? "good" : status.configured ? "warn" : "neutral"}`} data-testid="status-cloud">{status.connected ? "Connected" : status.configured ? "Not signed in" : "Not configured"}</span> : <span className="badge neutral">Checking…</span>}</div>
-      {!status && !err && <div className="skel" style={{ height: 80 }} />}
-      {status && <dl className="kv">
-        <dt>Account</dt><dd>{status.account ? <>{status.account.name}<br /><span className="muted mono" style={{ fontSize: 11 }}>{status.account.email}</span></> : "None"}</dd>
-        <dt>State</dt><dd>{cloudLabel(status).text}</dd>
-        <dt>Last sync</dt><dd>{status.lastSyncAt ? fmtTime(status.lastSyncAt) : "Never"}</dd>
-        <dt>Pending</dt><dd>{status.pending ? "Changes waiting to sync" : "Nothing pending"}</dd>
-      </dl>}
-      {status?.message && <div className="notice blue" style={{ marginTop: 10 }}><span>{status.message}</span></div>}
+    <div data-testid="panel-cloud">
+      <div className="settings-account-grid">
+        <section className="panel settings-account-card" aria-labelledby="settings-account-heading">
+          <span className="kicker">Account</span>
+          <h2 id="settings-account-heading">{status?.account?.name ?? (status ? "College account" : "Checking account…")}</h2>
+          <div className="settings-identity">
+            <span className="settings-avatar" aria-hidden="true">{status?.account?.name?.trim().slice(0, 1).toUpperCase() || "G"}</span>
+            <div><b>{status?.account?.email ?? "Not signed in"}</b><small>{status?.connected ? "College account" : "Use your rajagiri.edu account"}</small></div>
+          </div>
+          {!status?.connected && <button className="btn" disabled={!desktop || cloudBusy || !clean || !status?.configured} onClick={() => void run("connect", connectDrive, "Google Drive connected.", true)} data-testid="button-connect-drive"><LogIn size={13} /> {busy === "connect" ? "Waiting for sign-in…" : "Connect Google account"}</button>}
+          {status?.connected && <button className="btn" disabled={!desktop || cloudBusy || !clean} onClick={() => void run("connect", connectDrive, "Google account reconnected.", true)} data-testid="button-reconnect-drive"><LogIn size={13} /> {busy === "connect" ? "Waiting for sign-in…" : "Reconnect account"}</button>}
+          {status?.connected && <button className="btn small ghost settings-signout" disabled={cloudBusy || !clean} onClick={() => setConfirm(true)} data-testid="button-logout-delete"><LogOut size={13} /> Sign out & clear local files</button>}
+          {desktop && <details className="settings-connection-details">
+            <summary>Connection setup</summary>
+            <button className="btn small" disabled={cloudBusy || status?.connected || !clean} onClick={() => void run("configure", configureGoogle, "Google desktop client loaded.")} data-testid="button-configure-google"><FileKey size={13} /> {busy === "configure" ? "Choosing file…" : "Load OAuth client JSON"}</button>
+          </details>}
+        </section>
+        <section className="panel settings-sync-card" aria-labelledby="settings-drive-heading">
+          <div className="settings-sync-head">
+            <div><span className="kicker">Google Drive</span><h2 id="settings-drive-heading" data-testid="status-cloud">{status ? cloudLabel(status).text : "Checking…"}</h2></div>
+            <button className="btn primary" disabled={!desktop || !status?.connected || cloudBusy || !clean} onClick={() => void run("sync", syncDrive, "Sync finished.", true)} data-testid="button-sync-drive"><RefreshCw size={13} /> {busy === "sync" || status?.busy ? "Syncing…" : "Sync now"}</button>
+          </div>
+          <div className="settings-sync-summary">
+            <div><b>On this PC</b><small>{!clean ? "Unsaved changes" : !status ? "Checking…" : status.pending ? "Changes waiting to sync" : "Saved locally"}</small></div>
+            <div><b>In Drive</b><small>{!status ? "Checking…" : !status.connected ? "Not connected" : status.state === "synced" && !status.pending && clean ? "Up to date" : "Not yet up to date"}</small></div>
+          </div>
+          {status?.lastSyncAt && <p className="hint settings-last-sync">Last sync {fmtTime(status.lastSyncAt)}</p>}
+          {!desktop && <p className="hint settings-last-sync">Google sign-in is available in the installed desktop app.</p>}
+        </section>
+      </div>
+      {status?.state === "error" && status.message && <div className="notice red" role="alert" style={{ marginTop: 10 }}><AlertTriangle size={14} /><span>{status.message}</span></div>}
       {(err || cloudError) && <div className="notice red" role="alert" style={{ marginTop: 10 }}><AlertTriangle size={14} /><span>{err || cloudError}</span></div>}
       {!clean && <p className="hint">Save or fix your edits before connecting, syncing or signing out, so they stay with the right account.</p>}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-        {desktop && <button className="btn" disabled={cloudBusy} onClick={() => void run("configure", configureGoogle, "Google desktop client loaded.")} data-testid="button-configure-google"><FileKey size={13} /> {busy === "configure" ? "Choosing file…" : "Load OAuth client JSON"}</button>}
-        {!status?.connected && <button className="btn primary" disabled={cloudBusy || !clean || (status ? !status.configured : true)} onClick={() => void run("connect", connectDrive, "Google Drive connected.", true)} data-testid="button-connect-drive"><LogIn size={13} /> {busy === "connect" ? "Waiting for browser sign-in…" : "Connect Google Drive"}</button>}
-        {status?.connected && status.state === "error" && <button className="btn" disabled={cloudBusy || !clean} onClick={() => void run("connect", connectDrive, "Google account reconnected.", true)} data-testid="button-reconnect-drive"><LogIn size={13} /> Reconnect same account</button>}
-        {status?.connected && <button className="btn" disabled={cloudBusy || !clean} onClick={() => void run("sync", syncDrive, "Sync finished.", true)} data-testid="button-sync-drive"><RefreshCw size={13} /> {busy === "sync" ? "Syncing…" : "Sync now"}</button>}
-        {status?.connected && <button className="btn danger" disabled={cloudBusy || !clean} onClick={() => setConfirm(true)} data-testid="button-logout-delete"><LogOut size={13} /> Log out and delete local files</button>}
-      </div>
-      {!desktop && <p className="hint" style={{ marginBottom: 0 }}>Google sign-in runs only in the installed desktop app. This preview never asks for credentials.</p>}
       <Modal open={confirm} onClose={() => { if (!busy) { setConfirm(false); setAck(false); } }} title="Log out and delete local files?"
         footer={<><button className="btn" disabled={!!busy} onClick={() => { setConfirm(false); setAck(false); }}>Cancel</button>
           <button className="btn danger" disabled={!ack || !!busy} onClick={() => void logout()} data-testid="button-confirm-logout">{busy === "logout" ? "Syncing, then removing…" : "Sync, log out and delete"}</button></>}>
@@ -80,7 +92,7 @@ export function CloudPanel() {
         {err && <div className="notice red"><AlertTriangle size={14} /><span>{err}</span></div>}
         <label className="required-toggle"><input type="checkbox" className="check" checked={ack} onChange={e => setAck(e.target.checked)} data-testid="check-logout-ack" /> I understand local files for this account will be deleted</label>
       </Modal>
-    </section>
+    </div>
   );
 }
 
@@ -99,15 +111,16 @@ export function UpdatesPanel() {
   }, [active]);
   const restart = async () => { setBusy("restart"); setErr(null); try { await restartForUpdate(); } catch (e) { setErr(errMsg(e)); } finally { setBusy(null); } };
   return (
-    <section className="panel panel-pad" style={{ gridColumn: "1 / -1" }}>
-      <div className="section-title"><h2>Updates</h2>{st && <span className={`badge ${readyToRestart ? "good" : "neutral"}`} data-testid="status-update">{st.state}</span>}</div>
-      <p className="hint" style={{ marginTop: 0 }}>Installed version {runtime?.version ?? "unknown"}. Updates install only when you restart.</p>
+    <section className="panel settings-updates">
+      <div className="settings-update-head">
+        <div><h2>App updates</h2><span className="hint" data-testid="status-update">Version {runtime?.version ?? "unknown"} · {st?.state ?? "Not checked"}</span></div>
+        <div className="settings-update-buttons">
+          <button className="btn" disabled={!!busy} onClick={() => void check()} data-testid="button-check-updates"><RefreshCw size={13} /> {busy === "check" ? "Checking…" : "Check for updates"}</button>
+          {readyToRestart && <button className="btn primary" disabled={!!busy || !clean} onClick={() => void restart()} data-testid="button-restart-update"><RotateCcw size={13} /> {busy === "restart" ? "Restarting…" : "Restart to update"}</button>}
+        </div>
+      </div>
       {st?.message && <div className="notice blue" style={{ marginBottom: 10 }}><span>{st.message}</span></div>}
       {err && <div className="notice red" role="alert" style={{ marginBottom: 10 }}><AlertTriangle size={14} /><span>{err}</span></div>}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="btn" disabled={!!busy} onClick={() => void check()} data-testid="button-check-updates"><RefreshCw size={13} /> {busy === "check" ? "Checking…" : "Check for updates"}</button>
-        {readyToRestart && <button className="btn primary" disabled={!!busy || !clean} onClick={() => void restart()} data-testid="button-restart-update"><RotateCcw size={13} /> {busy === "restart" ? "Restarting…" : "Restart to update"}</button>}
-      </div>
       {readyToRestart && !clean && <p className="hint">Restart waits until unsaved or invalid edits are saved or fixed.</p>}
     </section>
   );
