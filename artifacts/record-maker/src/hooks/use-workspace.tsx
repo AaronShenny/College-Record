@@ -13,6 +13,7 @@ export type Toast = { id: number; text: string; tone: "info" | "error" };
 
 type Store = {
   workspace: Workspace | null;
+  workspaceRevision: string | null;
   loadError: string | null;
   reload: () => void;
   update: (fn: (w: Workspace) => Workspace) => void;
@@ -242,7 +243,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  return <Ctx.Provider value={{ workspace, loadError, reload, update, save, saveNow, runtime, runtimeError, toasts, notify, dismiss, drafts, setDraft, cloud, cloudError, refreshCloud, isClean, gen, startGeneration, docsVersion, generationChoices, setGenerationChoice }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ workspace, workspaceRevision: localRevision, loadError, reload, update, save, saveNow, runtime, runtimeError, toasts, notify, dismiss, drafts, setDraft, cloud, cloudError, refreshCloud, isClean, gen, startGeneration, docsVersion, generationChoices, setGenerationChoice }}>{children}</Ctx.Provider>;
 }
 
 export function useStore() {

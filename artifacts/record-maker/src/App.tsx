@@ -1,4 +1,5 @@
 import "./app.css";
+import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useHashRoute } from "@/components/kit";
@@ -13,15 +14,37 @@ import DocumentsPage from "@/pages/documents";
 import TemplatePage from "@/pages/template";
 import ImportPage from "@/pages/import";
 import { workspaceAccess } from "@/lib/workspace-access";
+import { syncDrive } from "@/lib/workflow-api";
+import { errMsg } from "@/hooks/use-workspace";
+
+function InitialDriveError() {
+  const { cloud, reload, refreshCloud } = useStore();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const retry = async () => {
+    setBusy(true); setError("");
+    try { await syncDrive(); await refreshCloud(); reload(); }
+    catch (e) { setError(errMsg(e)); await refreshCloud(); }
+    finally { setBusy(false); }
+  };
+  return <div className="crm" style={{ display: "grid", placeItems: "center", padding: 24 }}>
+    <div className="panel panel-pad" style={{ maxWidth: 480 }}>
+      <h1 style={{ fontSize: 28 }}>Your Drive records haven’t loaded yet</h1>
+      <p>There are no records cached on this computer. That does not mean your Drive is empty.</p>
+      <div className="notice red" role="alert"><AlertTriangle size={14} /><span>{error || cloud?.message || "Drive sync could not finish. Check your connection and try again."}</span></div>
+      <button className="btn primary" disabled={busy} onClick={() => void retry()} data-testid="button-retry-initial-sync">{busy ? "Trying again…" : "Retry Drive sync"}</button>
+    </div>
+  </div>;
+}
 
 function Routes() {
-  const { workspace, loadError, reload, runtime, cloud, drafts, notify } = useStore();
+  const { workspace, workspaceRevision, loadError, reload, runtime, cloud, drafts, notify } = useStore();
   const parts = useHashRoute(() => {
     if (!drafts.size) return true;
     notify("Fix the highlighted draft fields before changing pages. Your entered values are still here.", "error");
     return false;
   });
-  const access = workspaceAccess(runtime, cloud);
+  const access = workspaceAccess(runtime, cloud, workspace, workspaceRevision);
   if (access === "sign-in") return <DesktopSignIn />;
   if (loadError) {
     return <div className="crm" style={{ display: "grid", placeItems: "center", padding: 24 }}>
@@ -34,9 +57,10 @@ function Routes() {
       </div>
     </div>;
   }
+  if (access === "sync-error") return <InitialDriveError />;
   if (!workspace || access === "opening") {
     return <div className="crm" aria-busy="true"><div className="app-shell"><aside className="sidebar"><div className="skel" style={{ height: 36 }} /><div className="skel" style={{ height: 160 }} /></aside>
-      <main style={{ padding: 36, display: "grid", gap: 16, alignContent: "start" }}><p role="status">{access === "opening" ? "Opening your account’s records…" : "Loading your saved records…"}</p><p className="hint">The first download needs Drive. After that, saved records open locally while sync runs in the background.</p><div className="skel" style={{ height: 40, width: 320 }} /><div className="skel" style={{ height: 130 }} /><div className="skel" style={{ height: 260 }} /></main></div></div>;
+      <main style={{ padding: 36, display: "grid", gap: 16, alignContent: "start" }}><p role="status">{cloud?.connected && (!workspace || workspace.subjects.length === 0) ? "Loading your records from Google Drive…" : access === "opening" ? "Opening your account’s records…" : "Loading your saved records…"}</p><p className="hint">Please wait before creating records. Your Drive has not been confirmed empty. Existing cached records open locally while sync runs in the background.</p><div className="skel" style={{ height: 40, width: 320 }} /><div className="skel" style={{ height: 130 }} /><div className="skel" style={{ height: 260 }} /></main></div></div>;
   }
   const [a, b, c] = parts;
   let page;
