@@ -1,12 +1,14 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import type { WorkerResult } from "../src/lib/contracts";
+import { diagnosticContext } from "./diagnostic-context";
 
 export class PythonWorker {
   private child?: ChildProcessWithoutNullStreams;
   private buffer = "";
   private pending = new Map<string, { resolve: (result: WorkerResult) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
-  constructor(private command: string, private args: string[]) {}
+  constructor(private command: string, private args: string[],
+    private diagnostic: (details: Record<string, unknown>) => void = () => undefined) {}
   private start() {
     if (this.child) return;
     this.child = spawn(this.command, this.args, { shell: false, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
@@ -41,7 +43,20 @@ export class PythonWorker {
     child.stdin.on("error", () => { if (this.child === child) this.stop("Could not send a job to the Python helper"); });
     child.on("exit", () => { if (this.child === child) this.stop("Python helper exited before completing its jobs."); });
   }
-  request(action: "health" | "snapshot-summary" | "workflow", params: Record<string, unknown> = {}, timeoutMs = 30_000): Promise<WorkerResult> {
+  async request(action: "health" | "snapshot-summary" | "workflow", params: Record<string, unknown> = {}, timeoutMs = 30_000): Promise<WorkerResult> {
+    const started = performance.now(), parentOperationId = diagnosticContext.getStore();
+    try {
+      const result = await this.execute(action, params, timeoutMs);
+      this.diagnostic({ operation: action, ok: true, durationMs: Math.round(performance.now() - started), parentOperationId });
+      return result;
+    } catch (error) {
+      // Only parent process classifies the error. This message is not written raw.
+      this.diagnostic({ operation: action, ok: false, durationMs: Math.round(performance.now() - started), parentOperationId,
+        error: error instanceof Error ? error.message : "" });
+      throw error;
+    }
+  }
+  private execute(action: "health" | "snapshot-summary" | "workflow", params: Record<string, unknown>, timeoutMs: number): Promise<WorkerResult> {
     const id = randomUUID();
     const line = JSON.stringify({ protocol: 1, id, action, params }) + "\n";
     if (Buffer.byteLength(line, "utf8") > 131_072) return Promise.reject(new Error("This Python job request is too large; no job was started"));

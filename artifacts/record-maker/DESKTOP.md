@@ -49,11 +49,40 @@ after the renderer has painted its usable dashboard. A missing/empty cache start
 sync without counting its loading screen as a ready dashboard.
 
 Settings → Details → Export diagnostic log includes startup phases, actual
-renderer readiness, secure-vault timings, background operation timings, system
-free/total memory and process measurements during stalls. No records, account
-details or tokens are included. `diagnosticsVersion: 2` distinguishes the new
-measurements from earlier logs; old `window-loaded` events included service
-initialization, while the new event measures the window path separately.
+renderer readiness, secure-vault timings, system free/total memory and process
+measurements during stalls. Version 0.1.2 adds `diagnosticsVersion: 3`:
+
+- Each launch has a session ID, ordered sequence numbers and process age.
+- Native operations and background requests record start/end, duration, success
+  and safe failure categories. Parent operation IDs link UI requests, storage,
+  Drive and Python work; simultaneous operations remain distinguishable.
+- Clicks, form changes, editing activity (at most once per second), pastes,
+  submissions, save shortcuts and navigation record static control/page names.
+  Controls without a known static ID record only their element type.
+- Renderer heartbeat (30 seconds), visible-page event-loop delays, long tasks
+  over 200 ms, unhandled renderer errors, renderer/child-process exits, preload
+  failures and close requests help distinguish UI stalls from background jobs.
+- Drive HTTP attempts include method/status/retry/timing, not URL or body.
+  Python jobs include timing/outcome. Generation summaries include document and
+  failure counts/categories, including partial failures returned as normal results.
+
+Diagnostics are local; there is no automatic upload. No typed values, keylogging,
+source code, screenshots, clipboard contents, document contents, account details,
+Drive IDs, file paths, raw error messages/stacks, credentials or tokens are logged.
+Error categories/codes deliberately replace potentially private exception text;
+an unrecognized failure is reported as `unclassified`, not guessed.
+
+Writes are buffered asynchronously (normally within 250 ms), with a bounded
+queue and two rotating files of roughly 2 MB each. Export includes both files,
+not just the latest fragment. Retention is size-based; it is not an unlimited
+audit archive. Logging failures cannot block record saves. A crash/forced kill
+can lose the last buffered events, and an installer failure before app startup
+cannot appear in the app log. Main-process diagnostics begin when Electron is
+ready; the log is not a full Windows or installer trace.
+
+Older `window-loaded` events included service initialization; versions 2 and 3
+measure the window path separately. A heartbeat is diagnostic evidence only,
+not proof that an external Word/Google operation is responsive.
 
 For a graphics comparison only, close all app instances and launch the installed
 EXE with `--record-maker-disable-gpu`. The flag does not clear files or change

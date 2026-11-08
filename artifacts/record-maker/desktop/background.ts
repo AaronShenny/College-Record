@@ -6,6 +6,7 @@ import { WorkspaceStore } from "./store";
 import { DriveSync, DriveFiles } from "./drive-sync";
 import { PythonWorker } from "./worker-client";
 import { DocumentService } from "./processing";
+import { diagnosticContext } from "./diagnostic-context";
 
 // Electron UtilityProcess in production; Node IPC permits testing the exact
 // bundled service without simulating the storage or Drive implementation.
@@ -14,7 +15,7 @@ const send = (message: unknown) => port ? port.postMessage(message) : process.se
 const [root, command, ...args] = process.argv.slice(2);
 if (!root || !path.isAbsolute(root) || !command) throw new Error("Invalid background service startup");
 const store = new WorkspaceStore(root);
-const worker = new PythonWorker(command, args);
+const worker = new PythonWorker(command, args, details => send({ type: "diagnostic", event: "python-job", ...details }));
 const documents = new DocumentService(root, worker);
 let closing = false;
 const tokens = new Map<string, { resolve(token: string): void; reject(error: Error): void }>();
@@ -26,7 +27,10 @@ const account = {
     const id = randomUUID(); tokens.set(id, { resolve, reject }); send({ type: "token", id });
   }),
 };
-const sync = new DriveSync(account, () => store);
+const driveDiagnostic = (details: Record<string, unknown>) => send({
+  type: "diagnostic", event: "drive-request", parentOperationId: diagnosticContext.getStore(), ...details,
+});
+const sync = new DriveSync(account, () => store, driveDiagnostic);
 async function dispatch(action: string, payload: Record<string, any>) {
   if (closing && action !== "shutdown") throw new Error("The background workspace is closing.");
   switch (action) {
@@ -56,7 +60,7 @@ async function dispatch(action: string, payload: Record<string, any>) {
     }
     case "drive-sources": {
       const id = z.string().regex(/^[A-Za-z0-9_-]{5,150}$/).parse(payload.id);
-      const api = new DriveFiles(account);
+      const api = new DriveFiles(account, undefined, driveDiagnostic);
       const files = await api.list(`'${id}' in parents`);
       const result = [];
       for (const file of files.filter(f => /\.(py|java|c|h|cpp|hpp|txt|sql|js|ts)$/i.test(f.name)).slice(0, 300)) {
@@ -105,7 +109,7 @@ async function receive(message: any) {
   account.configured = message.account?.configured === true;
   let ok = false;
   try {
-    const value = await dispatch(message.action, message.payload || {});
+    const value = await diagnosticContext.run(message.id, () => dispatch(message.action, message.payload || {}));
     ok = true; send({ type: "result", id: message.id, ok: true, value });
   } catch (error) {
     send({ type: "result", id: message.id, ok: false, error: error instanceof Error ? error.message : "Background operation failed." });

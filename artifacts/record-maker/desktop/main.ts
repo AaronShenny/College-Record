@@ -7,6 +7,8 @@ import { createRequire } from "node:module";
 import { z } from "zod";
 import type { NativeWorkflows } from "./native-workflows";
 import { PerformanceLog } from "./performance-log";
+import { diagnosticError, diagnosticOperation } from "./diagnostic-policy";
+import { parseRendererEvent } from "./renderer-diagnostics";
 
 let window: BrowserWindow | undefined;
 let services: NativeWorkflows | undefined;
@@ -42,10 +44,21 @@ else {
             event.senderFrame.url.split("#")[0].replace(/\/$/, "") !== allowedUrl.replace(/\/$/, "")) {
           throw new Error("Desktop operation rejected: untrusted renderer");
         }
-        await ready;
-        return handler(...args);
+        if (name === "renderer-diagnostic") return handler(...args);
+        const operation = diagnosticOperation(name === "workflow" ? args[0] : name);
+        return diagnostics.trace(operation, async () => {
+          await ready;
+          return handler(...args);
+        });
       });
     };
+    let diagnosticWindow = Date.now(), diagnosticCount = 0;
+    handle("renderer-diagnostic", input => {
+      if (Date.now() - diagnosticWindow > 1000) { diagnosticWindow = Date.now(); diagnosticCount = 0; }
+      if (++diagnosticCount > 30) return; // Bound compromised/noisy renderer logging.
+      const parsed = parseRendererEvent(input);
+      if (parsed) diagnostics.record("renderer-event", parsed);
+    });
     handle("runtime", () => ({
       mode: "desktop", version: app.getVersion(), platform: process.platform,
       storageLabel: services!.root, driveConnected: !!services!.account.identity, pythonAvailable: null,
@@ -138,6 +151,20 @@ else {
     });
     window.setMenuBarVisibility(false);
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    window.webContents.on("render-process-gone", (_event, details) => {
+      diagnostics.record("renderer-process-gone", { reason: details.reason, exitCode: details.exitCode });
+    });
+    window.webContents.on("did-fail-load", (_event, errorCode) => diagnostics.record("renderer-load-failed", { errorCode }));
+    window.webContents.on("preload-error", () => diagnostics.record("preload-error"));
+    window.webContents.on("did-start-loading", () => diagnostics.record("renderer-loading-start"));
+    window.webContents.on("dom-ready", () => diagnostics.record("renderer-dom-ready"));
+    app.on("child-process-gone", (_event, details) => diagnostics.record("child-process-gone", {
+      reason: details.reason, processType: details.type, exitCode: details.exitCode,
+    }));
+    process.on("uncaughtExceptionMonitor", error => {
+      diagnostics.record("uncaught-exception", diagnosticError(error));
+      void diagnostics.flush();
+    });
     window.webContents.on("will-navigate", (event, url) => {
       if (url.split("#")[0].replace(/\/$/, "") !== allowedUrl.replace(/\/$/, "")) event.preventDefault();
     });
@@ -166,13 +193,14 @@ else {
       lastTick = now;
     }, 1000).unref();
     window.on("close", event => {
+      diagnostics.record("window-close-requested", { processing: !!services?.documents?.busy });
       if (services?.documents?.busy) {
         event.preventDefault();
         dialog.showMessageBoxSync(window!, { type: "info", title: "Document processing is running",
           message: "Wait for document processing to finish before closing.", detail: "You can continue editing while it runs.", buttons: ["Keep working"] });
       }
     });
-    window.on("closed", () => { window = undefined; });
+    window.on("closed", () => { diagnostics.record("window-closed"); void diagnostics.flush(); window = undefined; });
     if (devUrl) await window.loadURL(devUrl); else await window.loadFile(entry);
     diagnostics.record("window-loaded", { durationMs: Math.round(performance.now() - started), processAgeMs: Math.round(process.uptime() * 1000) });
     await firstPaint;
@@ -188,7 +216,8 @@ else {
       resolveReady();
     } catch (error) {
       rejectReady(error);
-      diagnostics.record("startup-failed");
+      diagnostics.record("startup-failed", diagnosticError(error));
+      await diagnostics.flush();
       throw error;
     }
   }).catch(error => { dialog.showErrorBox("College Record Maker could not start", String(error)); app.quit(); });
@@ -200,6 +229,10 @@ else {
   app.on("will-quit", event => {
     if (!services || closingServices) return;
     event.preventDefault(); closingServices = true;
-    void services.close().catch(() => undefined).finally(() => app.quit());
+    void services.close().catch(() => undefined).finally(async () => {
+      services!.diagnostics.record("app-quit");
+      await services!.diagnostics.flush();
+      app.quit();
+    });
   });
 }

@@ -10,6 +10,7 @@ import { build } from "esbuild";
 import { BackgroundClient, BackgroundStore, BackgroundSync, BackgroundPython, cloudStatusWithActivity, type BackgroundTransport } from "./background-client";
 import { WorkspaceStore } from "./store";
 import type { Workspace } from "../src/lib/contracts";
+import { diagnosticContext } from "./diagnostic-context";
 
 let directory: string;
 let bundle: string;
@@ -65,6 +66,10 @@ test("isolated service opens existing snapshots and preserves code/images across
     await assert.rejects(s.client.request("store-save", { workspace: { schemaVersion: 9, subjects: [] } }), /Invalid literal/);
     assert.deepEqual(await new WorkspaceStore(s.root).load(), changed);
     assert.ok(s.timings.some(row => row.phase === "store-load"));
+    const failed = s.timings.find(row => row.event === "background-request-end" && row.ok === false);
+    assert.ok(failed?.operationId);
+    assert.ok(failed?.category);
+    assert.doesNotMatch(JSON.stringify(s.timings), /print\('preserved'\)|aW1hZ2U=|Existing lab|Existing record/);
   } finally { await s.client.close(); }
 });
 
@@ -122,9 +127,14 @@ test("Python health and immutable snapshot inspection work through the isolated 
     const w = workspace();
     await s.store.save(w);
     const python = new BackgroundPython(s.client);
-    assert.equal((await python.health()).result.studentCodeExecution, false);
+    const parentId = randomUUID();
+    assert.equal((await diagnosticContext.run(parentId, () => python.health())).result.studentCodeExecution, false);
+    assert.ok(s.timings.some(row => row.event === "background-request-start" && row.parentOperationId === parentId));
     const result = await python.inspect(w.subjects[0].id, [w.subjects[0].programs[0].id]);
     assert.equal((result.result.programs as unknown[]).length, 1);
+    // IPC diagnostic messages can arrive after their result message.
+    await new Promise(resolve => setTimeout(resolve, 30));
+    assert.ok(s.timings.some(row => row.event === "python-job" && row.ok));
   } finally { await s.client.close(); }
 });
 

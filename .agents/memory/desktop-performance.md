@@ -19,3 +19,9 @@ Prefer isolating native workloads and measuring startup phases before migrating 
 **Why:** A later Windows report showed long stalls without recorded workspace loads or saves. That evidence did not establish that whole-workspace persistence caused the freezes; low app working-set memory also does not rule out system memory/disk pressure. The user approved a targeted performance fix before a database rewrite.
 
 **How to apply:** Preserve the existing data format while investigating native blocking, background work and graphics. Do not present a SQLite migration as a proven cure without measurements that connect storage work to the slowdown.
+
+Record a broad diagnostic action history, not only slow operations.
+
+**Why:** The user requested logging of actions and background activity because timing-only logs could not explain failed sync and document jobs.
+
+**How to apply:** Include correlated starts/outcomes and responsiveness evidence, but never typed content, source, images, account information, credentials or raw exception text. Keep writes asynchronous and retention bounded so diagnostics do not introduce another performance problem.

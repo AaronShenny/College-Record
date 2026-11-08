@@ -18,13 +18,25 @@ const versionedPath = (relative: string, bytes: Buffer) => {
 };
 
 export class DriveFiles {
-  constructor(private account: DriveAccount, private abort?: AbortSignal) {}
+  constructor(private account: DriveAccount, private abort?: AbortSignal,
+    private diagnostic: (details: Record<string, unknown>) => void = () => undefined) {}
   async request(endpoint: string, init: RequestInit = {}): Promise<Response> {
     for (let attempt = 0; attempt < 4; attempt++) {
-      const response = await fetch(`https://www.googleapis.com${endpoint}`, {
-        ...init, headers: { ...init.headers, Authorization: `Bearer ${await this.account.token()}` },
-        signal: this.abort ? AbortSignal.any([this.abort, AbortSignal.timeout(120_000)]) : AbortSignal.timeout(120_000),
-      });
+      const started = performance.now();
+      let response: Response;
+      try {
+        response = await fetch(`https://www.googleapis.com${endpoint}`, {
+          ...init, headers: { ...init.headers, Authorization: `Bearer ${await this.account.token()}` },
+          signal: this.abort ? AbortSignal.any([this.abort, AbortSignal.timeout(120_000)]) : AbortSignal.timeout(120_000),
+        });
+      } catch (error) {
+        this.diagnostic({ method: init.method || "GET", attempt: attempt + 1, httpStatus: 0, ok: false,
+          durationMs: Math.round(performance.now() - started), error: error instanceof Error ? error.message : "" });
+        throw error;
+      }
+      // No endpoint, query, headers, body, Drive IDs or remote filenames.
+      this.diagnostic({ method: init.method || "GET", attempt: attempt + 1, httpStatus: response.status, ok: response.ok,
+        durationMs: Math.round(performance.now() - started) });
       if (response.ok) return response;
       if ([429, 500, 502, 503, 504].includes(response.status) && attempt < 3) {
         await new Promise(resolve => setTimeout(resolve, 750 * 2 ** attempt)); continue;
@@ -144,7 +156,8 @@ export class DriveSync {
   private extrasCache?: { root: string; signature: string; until: number };
   private extrasScan?: { root: string; promise: Promise<string> };
   private statusEpoch = 0;
-  constructor(readonly account: DriveAccount, private store: () => WorkspaceStore) {}
+  constructor(readonly account: DriveAccount, private store: () => WorkspaceStore,
+    private diagnostic: (details: Record<string, unknown>) => void = () => undefined) {}
   invalidateStatus() { this.extrasCache = undefined; this.statusEpoch++; }
   private async extrasSignature() {
     const root = this.store().root;
@@ -179,7 +192,7 @@ export class DriveSync {
     this.controller = new AbortController();
     this.finished = new Promise(resolve => { this.markFinished = resolve; });
     try {
-      const api = new DriveFiles(this.account, this.controller.signal);
+      const api = new DriveFiles(this.account, this.controller.signal, this.diagnostic);
       const root = await api.root();
       const records = await api.list(`appProperties has { key='recordMakerRoot' and value='${root}' }`);
       const lookup = new Map<string, RemoteFile>();
