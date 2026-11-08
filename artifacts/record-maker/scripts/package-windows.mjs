@@ -25,6 +25,7 @@ const run = (command, args) => {
   if (result.status !== 0) throw new Error(`${command} failed with exit code ${result.status}`);
 };
 run(process.execPath, [path.join(root, "scripts/build-desktop.mjs")]);
+run(process.execPath, [path.join(root, "scripts/smoke-desktop.mjs")]);
 run(process.env.RECORD_MAKER_PYTHON || "python", [
   "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir", "--console",
   "--name", "record-maker-worker", "--distpath", "dist/python", "--workpath", "dist/pyinstaller",

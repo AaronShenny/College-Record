@@ -31,6 +31,41 @@ For signed updates, supply HTTPS `RECORD_MAKER_UPDATE_URL`, exact certificate pu
 - PDF and opening a generated Word document require installed Windows desktop Microsoft Word; no LibreOffice or browser converter is used. DOCX generation and record editing do not require Word.
 - Check third-party distribution obligations (including PyMuPDF licensing) before a college-wide release. Processor/minimum-Windows-build and installer recovery/release policies still need final confirmation.
 
+### Startup and freeze diagnostics
+
+The target is an **interactive cached dashboard within 15 seconds** on the
+supported Windows test computer, not merely the appearance of a loading screen.
+First-time Google consent and uncached downloads depend on the network and are
+reported separately. Do not label the target achieved based on browser or Linux
+tests.
+
+The small Electron entry opens the window before loading Google/updater modules.
+Credential unlock still verifies which account owns the cache before records are
+exposed. Storage reads, validation, durable saves, file hashing, Drive sync,
+document jobs and source-folder reads run in a separate Electron UtilityProcess.
+Python starts only for an explicit Python job. Cached records do not wait for
+Drive; startup updates are deferred, and the initial sync normally starts only
+after the renderer has painted its usable dashboard. A missing/empty cache starts
+sync without counting its loading screen as a ready dashboard.
+
+Settings → Details → Export diagnostic log includes startup phases, actual
+renderer readiness, secure-vault timings, background operation timings, system
+free/total memory and process measurements during stalls. No records, account
+details or tokens are included. `diagnosticsVersion: 2` distinguishes the new
+measurements from earlier logs; old `window-loaded` events included service
+initialization, while the new event measures the window path separately.
+
+For a graphics comparison only, close all app instances and launch the installed
+EXE with `--record-maker-disable-gpu`. The flag does not clear files or change
+credentials and is recorded in the diagnostic log. Compare a normal launch and
+this launch on the same computer before attributing a freeze to graphics.
+
+Windows acceptance checks: normal and graphics-disabled cold launches, repeated
+warm launches, a screenshot-heavy cached workspace, offline startup, slow Drive,
+editing/saving during sync, and closing/reopening after a save. Record
+`renderer-interactive` with `screen: "dashboard"` and its `processAgeMs`; a
+sign-in screen or loading skeleton does not satisfy the dashboard target.
+
 ---
 
 ## Development and packaging
@@ -86,6 +121,11 @@ pnpm --filter @workspace/record-maker run desktop:package
 
 The package step builds React and Electron, produces a Windows Python executable
 with PyInstaller, then builds a per-user NSIS installer containing both runtimes.
+Before packaging it also launches the compiled Electron renderer/preload and
+UtilityProcess against a disposable fixture, checks readiness, saves and reopens
+the fixture, and closes gracefully. That smoke check uses graphics-disabled
+mode without Google credentials; it is not an installed-app, real-account or
+15-second performance certification.
 Outputs are in `generated-artifacts/desktop/`, excluded from Git and publishing.
 The initial configured target is Windows x64; native ARM64/32-bit targets and
 minimum supported Windows builds are not yet specified.

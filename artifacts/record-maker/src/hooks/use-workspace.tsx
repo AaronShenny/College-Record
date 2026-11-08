@@ -103,16 +103,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (inFlight.current || !latest.current) return;
     if (savedRev.current === rev.current) return;
     const target = rev.current;
-    const parsed = workspaceSchema.safeParse(latest.current);
-    if (!parsed.success) {
-      setStatus({ kind: "invalid", message: parsed.error.issues[0]?.message ?? "Workspace has invalid data.", savedAt: lastSavedAt.current });
-      return;
+    let input = latest.current;
+    if (!window.recordMaker) {
+      const parsed = workspaceSchema.safeParse(input);
+      if (!parsed.success) {
+        setStatus({ kind: "invalid", message: parsed.error.issues[0]?.message ?? "Workspace has invalid data.", savedAt: lastSavedAt.current });
+        return;
+      }
+      input = parsed.data;
     }
     inFlight.current = true;
     setStatus({ kind: "saving", savedAt: lastSavedAt.current });
     let failed = false;
     try {
-      const receipt = await bridge.saveWorkspace(parsed.data);
+      // The native background service validates before committing. Repeating
+      // a whole-workspace parse/clone here would block the renderer on autosave.
+      const receipt = await bridge.saveWorkspace(input);
       // Older completions never move savedRev backwards.
       savedRev.current = Math.max(savedRev.current, target);
       lastSavedAt.current = receipt.savedAt;

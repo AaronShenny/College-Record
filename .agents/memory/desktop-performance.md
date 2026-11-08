@@ -13,3 +13,9 @@ The app should load within 15 seconds.
 **Why:** The user explicitly set this performance requirement and asked for a solution before implementation.
 
 **How to apply:** Measure launch to an interactive dashboard on Windows, not just the appearance of a loading screen. Distinguish cached startup from first-time Google authorization and network-dependent downloads when reporting results.
+
+Prefer isolating native workloads and measuring startup phases before migrating storage solely to resolve freezes.
+
+**Why:** A later Windows report showed long stalls without recorded workspace loads or saves. That evidence did not establish that whole-workspace persistence caused the freezes; low app working-set memory also does not rule out system memory/disk pressure. The user approved a targeted performance fix before a database rewrite.
+
+**How to apply:** Preserve the existing data format while investigating native blocking, background work and graphics. Do not present a SQLite migration as a proven cure without measurements that connect storage work to the slowdown.

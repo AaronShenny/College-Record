@@ -1,5 +1,5 @@
 import "./app.css";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useHashRoute } from "@/components/kit";
@@ -45,6 +45,19 @@ function Routes() {
     return false;
   });
   const access = workspaceAccess(runtime, cloud, workspace, workspaceRevision);
+  const readyScreen = access === "sign-in" ? "sign-in" : workspace && access === "ready" && !loadError ? "dashboard" : null;
+  useEffect(() => {
+    if (!readyScreen || !window.recordMaker?.reportReady) return;
+    // Two frames allow the real screen to paint; a skeleton never counts as
+    // an interactive dashboard in native startup diagnostics.
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => {
+        void window.recordMaker?.reportReady?.(readyScreen).catch(error => console.error("Desktop readiness could not be reported", error));
+      });
+    });
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
+  }, [readyScreen]);
   if (access === "sign-in") return <DesktopSignIn />;
   if (loadError) {
     return <div className="crm" style={{ display: "grid", placeItems: "center", padding: 24 }}>

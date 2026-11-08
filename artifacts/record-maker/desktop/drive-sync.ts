@@ -8,6 +8,7 @@ import type { CloudStatus } from "../src/lib/workflow-api";
 
 type RemoteFile = { id: string; name: string; mimeType: string; parents?: string[]; appProperties?: Record<string, string> };
 type SyncState = { localRevision: string; remoteRevision: string; extraSignature: string; lastSyncAt: string };
+type DriveAccount = Pick<GoogleAccount, "identity" | "configured" | "token">;
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const jsonBytes = (value: unknown) => Buffer.from(JSON.stringify(value));
 const FOLDER = "application/vnd.google-apps.folder";
@@ -17,7 +18,7 @@ const versionedPath = (relative: string, bytes: Buffer) => {
 };
 
 export class DriveFiles {
-  constructor(private account: GoogleAccount, private abort?: AbortSignal) {}
+  constructor(private account: DriveAccount, private abort?: AbortSignal) {}
   async request(endpoint: string, init: RequestInit = {}): Promise<Response> {
     for (let attempt = 0; attempt < 4; attempt++) {
       const response = await fetch(`https://www.googleapis.com${endpoint}`, {
@@ -143,7 +144,7 @@ export class DriveSync {
   private extrasCache?: { root: string; signature: string; until: number };
   private extrasScan?: { root: string; promise: Promise<string> };
   private statusEpoch = 0;
-  constructor(readonly account: GoogleAccount, private store: () => WorkspaceStore) {}
+  constructor(readonly account: DriveAccount, private store: () => WorkspaceStore) {}
   invalidateStatus() { this.extrasCache = undefined; this.statusEpoch++; }
   private async extrasSignature() {
     const root = this.store().root;

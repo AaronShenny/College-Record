@@ -17,5 +17,6 @@ test("performance diagnostics export ordered timings without workspace or creden
     assert.deepEqual(rows.map(row => row.event), ["window-loaded", "window-unresponsive", "diagnostics-export"]);
     assert.equal(rows[0].durationMs, 12);
     assert.ok(rows.every(row => row.mainRssMB > 0 && row.version === "test-version"));
+    assert.ok(rows.every(row => row.diagnosticsVersion === 2 && row.systemTotalMB > 0 && row.systemFreeMB >= 0 && row.mainHeapMB > 0));
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 });

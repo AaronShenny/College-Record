@@ -80,6 +80,7 @@ export type RuntimeInfo = {
 };
 export type WorkerResult = { jobId: string; result: Record<string, unknown> };
 export interface DesktopBridge {
+  reportReady?(screen: "dashboard" | "sign-in"): Promise<void>;
   getRuntime(): Promise<RuntimeInfo>;
   loadWorkspace(): Promise<Workspace>;
   saveWorkspace(workspace: Workspace): Promise<SaveReceipt>;
