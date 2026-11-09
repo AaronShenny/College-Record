@@ -1,6 +1,9 @@
 name: Build Windows desktop foundation
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main 
 permissions:
   contents: read
 jobs:
