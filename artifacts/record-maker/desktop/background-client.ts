@@ -52,8 +52,9 @@ export class BackgroundClient {
       return;
     }
     if (message.type === "diagnostic" && message.event === "python-job") {
-      this.record("python-job", {
+      this.record(message.stage ? "python-stage" : "python-job", {
         operation: diagnosticOperation(message.operation), ok: message.ok === true,
+        ...(["engine-loading", "engine-ready"].includes(message.stage) ? { stage: message.stage } : {}),
         durationMs: typeof message.durationMs === "number" ? message.durationMs : 0,
         ...(typeof message.parentOperationId === "string" && /^[a-f0-9-]{36}$/.test(message.parentOperationId) ? { parentOperationId: message.parentOperationId } : {}),
         ...(message.ok ? {} : { category: diagnosticError(new Error(message.error || "" )).category }),

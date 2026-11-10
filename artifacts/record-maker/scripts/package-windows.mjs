@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, promises as asyncFs } from "node:fs";
 import { build } from "electron-builder";
 import { parseDesktopRegistration } from "../desktop/google-registration.mjs";
 
@@ -20,9 +20,11 @@ const registration = process.env.GOOGLE_DESKTOP_CLIENT_JSON_PATH
   : process.env.GOOGLE_DESKTOP_CLIENT_JSON;
 if (registration) writeFileSync(path.join(configDirectory, "google-client.json"), JSON.stringify(parseDesktopRegistration(registration)), { mode: 0o600 });
 const run = (command, args) => {
+  const started = Date.now();
   const result = spawnSync(command, args, { cwd: root, stdio: "inherit", shell: false });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} failed with exit code ${result.status}`);
+  process.stdout.write(`Packaging stage completed in ${Date.now() - started} ms.\n`);
 };
 run(process.execPath, [path.join(root, "scripts/build-desktop.mjs")]);
 run(process.execPath, [path.join(root, "scripts/smoke-desktop.mjs")]);
@@ -42,7 +44,29 @@ const smoke = spawnSync(path.join(root, "dist/python/record-maker-worker/record-
 if (smoke.status !== 0 || !smoke.stdout) throw new Error("The bundled Python worker could not run on Windows");
 const response = JSON.parse(smoke.stdout.trim());
 if (response.ok !== true || response.result?.studentCodeExecution !== false) throw new Error("Bundled worker health check failed");
+const installerStarted = Date.now();
 await build({ projectDir: root, config: {
   extends: path.join(root, "electron-builder.yml"),
   ...(feed ? { publish: [{ provider: "generic", url: feed }], forceCodeSigning: true, win: { publisherName: publisherNames } } : {}),
 } });
+const output = path.resolve(root, "../../generated-artifacts/desktop");
+const inventory = async (directory) => {
+  let files = 0, bytes = 0;
+  for (const entry of await asyncFs.readdir(directory, { withFileTypes: true })) {
+    const filename = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      const child = await inventory(filename); files += child.files; bytes += child.bytes;
+    } else if (entry.isFile()) {
+      files++; bytes += (await asyncFs.stat(filename)).size;
+    }
+  }
+  return { files, bytes };
+};
+const report = {
+  installerBuildMs: Date.now() - installerStarted,
+  installed: await inventory(path.join(output, "win-unpacked")),
+  python: await inventory(path.join(root, "dist/python/record-maker-worker")),
+  note: "Build inventory only; installation/startup time must be measured on the target Windows PC.",
+};
+writeFileSync(path.join(output, "packaging-report.json"), JSON.stringify(report, null, 2));
+process.stdout.write(`Windows packaging inventory: ${JSON.stringify(report)}\n`);

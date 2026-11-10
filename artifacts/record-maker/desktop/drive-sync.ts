@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { mapConcurrent } from "./concurrency";
 import { createHash, randomUUID } from "node:crypto";
 import { GoogleAccount } from "./google-auth";
 import { WorkspaceStore, resolveInside } from "./store";
@@ -248,8 +249,11 @@ export class DriveSync {
       bundle.app.revision = remoteRevision;
       bundle.app.localSnapshot = revision;
       const folders = new Map<string, string>([["", root]]);
+      const pendingFolders = new Map<string, Promise<string>>();
       const ensureFolder = async (relative: string): Promise<string> => {
         if (folders.has(relative)) return folders.get(relative)!;
+        if (pendingFolders.has(relative)) return pendingFolders.get(relative)!;
+        const creating = (async () => {
         const parent = path.posix.dirname(relative) === "." ? "" : path.posix.dirname(relative);
         const parentId = await ensureFolder(parent);
         let folder = lookup.get(hash(`folder:${relative}`));
@@ -258,13 +262,15 @@ export class DriveSync {
           lookup.set(hash(`folder:${relative}`), folder);
         }
         folders.set(relative, folder.id); return folder.id;
+        })();
+        pendingFolders.set(relative, creating);
+        try { return await creating; } finally { pendingFolders.delete(relative); }
       };
-      for (const [relative, bytes] of bundle.files) {
-        if (lookup.has(hash(relative))) continue;
+      await mapConcurrent([...bundle.files].filter(([relative]) => !lookup.has(hash(relative))), async ([relative, bytes]) => {
         const parent = path.posix.dirname(relative);
         const file = await api.upload(root, await ensureFolder(parent), path.posix.basename(relative), relative, bytes);
         lookup.set(hash(relative), file);
-      }
+      });
       // Re-check immediately before publishing the new complete reference graph.
       const appRecord = lookup.get(hash("app.json"));
       const current = appRecord ? JSON.parse((await api.bytes(appRecord.id)).toString("utf8")) : null;

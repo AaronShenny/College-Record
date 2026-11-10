@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { mapConcurrent } from "./concurrency";
 import { randomUUID, createHash } from "node:crypto";
 import { emptyWorkspace, workspaceSchema, type Workspace, type SaveReceipt } from "../src/lib/contracts";
 
@@ -68,8 +69,7 @@ export class WorkspaceStore {
           return result;
         };
         if (stored.values) stored.values = await hydrateValues(stored.values);
-        const programs = [];
-        for (const programRef of stored.programs as Ref[]) {
+        const programs = await mapConcurrent<Ref, any>(stored.programs as Ref[], async programRef => {
           const program = JSON.parse((await readManaged(root, programRef.path)).toString("utf8"));
           if (program.values) program.values = await hydrateValues(program.values);
           const sources = [];
@@ -85,8 +85,8 @@ export class WorkspaceStore {
               outputs.push({ ...metadata, dataUrl: `data:${mime};base64,${image.toString("base64")}` });
             } else outputs.push(item);
           }
-          programs.push({ ...program, sources, outputs });
-        }
+          return { ...program, sources, outputs };
+        });
         subjects.push({ ...stored, programs });
       }
       return workspaceSchema.parse({ schemaVersion: app.schemaVersion, subjects });

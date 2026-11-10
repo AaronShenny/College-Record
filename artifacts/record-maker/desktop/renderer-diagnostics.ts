@@ -12,7 +12,7 @@ button-new-subject button-open-generate button-paste-image button-reconnect-driv
 button-remove-template button-rename-subject button-restart-update button-retry-initial-sync button-retry-load
 button-retry-save button-save-field button-save-now button-save-reviewed button-save-subject
 button-signin-configure button-signin-google button-signin-retry button-subject-settings button-sync-drive
-button-toggle-details button-trash-subject button-upload-first button-upload-template
+button-toggle-details button-trash-subject button-upload-first button-upload-template button-export-saved-pdf
 check-all-programs check-all-subject-programs check-logout-ack check-pdf check-reviewed-assign
 details-settings form-generate input-drive-folder input-field-label input-import-file input-new-role
 input-number input-page-range input-program-number input-program-title input-question input-search-subjects

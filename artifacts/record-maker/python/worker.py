@@ -4,6 +4,7 @@ import json
 import platform
 import sys
 import contextlib
+import time
 from pathlib import Path
 
 PROTOCOL = 1
@@ -28,8 +29,13 @@ def handle(request: dict, workspace_root: Path) -> dict:
         if not request_path.is_relative_to(workspace_root.resolve() / "jobs") or request_path.stat().st_size > 260 * 1024 * 1024:
             raise ValueError("Document request is outside the managed job workspace or exceeds its size limit")
         job = json.loads(request_path.read_text(encoding="utf-8"))
+        started = time.monotonic()
+        print(json.dumps({"protocol": PROTOCOL, "id": request["id"], "type": "progress", "phase": "engine-loading"}), flush=True)
         with contextlib.redirect_stdout(sys.stderr):
             from engine import handle as process_document
+        print(json.dumps({"protocol": PROTOCOL, "id": request["id"], "type": "progress", "phase": "engine-ready",
+                          "durationMs": round((time.monotonic() - started) * 1000)}), flush=True)
+        with contextlib.redirect_stdout(sys.stderr):
             result = process_document(job["action"], job["payload"])
         output = request_path.parent / "result.json"
         output.write_text(json.dumps(result), encoding="utf-8")
@@ -59,6 +65,9 @@ def handle(request: dict, workspace_root: Path) -> dict:
             "snapshot": snapshot.name, "note": "Snapshot inspected only. No document generated and no student code executed."}
 
 def main() -> int:
+    if len(sys.argv) == 3 and sys.argv[1] == "--word-pdf":
+        from word_pdf import run_helper
+        return run_helper(Path(sys.argv[2]))
     if len(sys.argv) != 3 or sys.argv[1] != "--workspace-root":
         print("Pass --workspace-root PATH", file=sys.stderr)
         return 2

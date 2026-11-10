@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { z } from "zod";
+import { uuid, workflowInput } from "./startup-validation";
 import type { NativeWorkflows } from "./native-workflows";
 import { PerformanceLog } from "./performance-log";
 import { diagnosticError, diagnosticOperation } from "./diagnostic-policy";
@@ -104,19 +104,25 @@ else {
       return receipt;
     });
     handle("renderer-ready", (screen: unknown) => {
-      const phase = z.enum(["dashboard", "sign-in"]).parse(screen);
+      if (screen !== "dashboard" && screen !== "sign-in") throw new Error("Invalid readiness screen.");
+      const phase = screen;
       if (!reportedScreens.has(phase)) {
         reportedScreens.add(phase);
         diagnostics.record("renderer-interactive", { screen: phase, processAgeMs: Math.round(process.uptime() * 1000) });
       }
       services!.startBackground();
     });
-    handle("workflow", (action, payload) => services!.run(z.string().max(80).parse(action), z.record(z.unknown()).parse(payload)));
-    handle("python-health", () => services!.worker.health());
+    handle("workflow", (action, payload) => services!.run(...workflowInput(action, payload)));
+    handle("python-health", () => {
+      if (services!.documents.busy) throw new Error("The Python helper is processing documents. Retry the health check after generation finishes.");
+      return services!.worker.health();
+    });
     handle("inspect", async (subjectId: unknown, programIds: unknown) => {
       if (!services!.canWork) throw new Error("Sign in before accessing saved records.");
-      const subject = z.string().uuid().parse(subjectId);
-      const programs = z.array(z.string().uuid()).max(500).parse(programIds);
+      if (services!.documents.busy) throw new Error("Finish document processing before running a Python snapshot inspection.");
+      const subject = uuid(subjectId);
+      if (!Array.isArray(programIds) || programIds.length > 500) throw new Error("Invalid program selection.");
+      const programs = programIds.map(uuid);
       return services!.worker.inspect(subject, programs);
     });
     handle("import-source", async () => {
@@ -201,12 +207,16 @@ else {
       }
     });
     window.on("closed", () => { diagnostics.record("window-closed"); void diagnostics.flush(); window = undefined; });
-    if (devUrl) await window.loadURL(devUrl); else await window.loadFile(entry);
-    diagnostics.record("window-loaded", { durationMs: Math.round(performance.now() - started), processAgeMs: Math.round(process.uptime() * 1000) });
+    const pageLoad = (devUrl ? window.loadURL(devUrl) : window.loadFile(entry)).then(() => {
+      diagnostics.record("window-loaded", { durationMs: Math.round(performance.now() - started) });
+    });
+    void pageLoad.catch(error => { rejectReady(error); });
     await firstPaint;
     try {
       // Keep Google/updater/storage modules out of the small main entry bundle.
-      // Requiring this separate build entry happens only after the UI can paint.
+      // Initialize once the window can paint (or its short paint deadline
+      // passes). Do not serialize credential/cache initialization behind a slow
+      // renderer page load; trusted IPC still waits for the ready gate.
       const importStarted = performance.now();
       const { NativeWorkflows } = createRequire(__filename)("./services.cjs") as typeof import("./native-workflows");
       diagnostics.record("services-module-loaded", { durationMs: Math.round(performance.now() - importStarted) });
@@ -214,6 +224,7 @@ else {
       await services.initialize();
       rendererRoot = services.root;
       resolveReady();
+      await pageLoad;
     } catch (error) {
       rejectReady(error);
       diagnostics.record("startup-failed", diagnosticError(error));

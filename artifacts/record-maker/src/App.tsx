@@ -1,18 +1,18 @@
 import "./app.css";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useHashRoute } from "@/components/kit";
 import { WorkspaceProvider, useStore } from "@/hooks/use-workspace";
 import { DesktopSignIn } from "@/components/desktop-sign-in";
 import Dashboard from "@/pages/dashboard";
-import SubjectPage from "@/pages/subject";
-import Editor from "@/pages/editor";
-import SettingsPage from "@/pages/settings";
-import TrashPage from "@/pages/trash";
-import DocumentsPage from "@/pages/documents";
-import TemplatePage from "@/pages/template";
-import ImportPage from "@/pages/import";
+const SubjectPage = lazy(() => import("@/pages/subject"));
+const Editor = lazy(() => import("@/pages/editor"));
+const SettingsPage = lazy(() => import("@/pages/settings"));
+const TrashPage = lazy(() => import("@/pages/trash"));
+const DocumentsPage = lazy(() => import("@/pages/documents"));
+const TemplatePage = lazy(() => import("@/pages/template"));
+const ImportPage = lazy(() => import("@/pages/import"));
 import { workspaceAccess } from "@/lib/workspace-access";
 import { syncDrive } from "@/lib/workflow-api";
 import { errMsg } from "@/hooks/use-workspace";
@@ -37,6 +37,22 @@ function InitialDriveError() {
   </div>;
 }
 
+function PaintedScreen({ screen, children }: { screen: "dashboard" | "sign-in"; children: React.ReactNode }) {
+  useEffect(() => {
+    if (!window.recordMaker?.reportReady) return;
+    // Two frames allow the real screen to paint; a skeleton never counts as
+    // an interactive dashboard in native startup diagnostics.
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => {
+        void window.recordMaker?.reportReady?.(screen).catch(error => console.error("Desktop readiness could not be reported", error));
+      });
+    });
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
+  }, [screen]);
+  return children;
+}
+
 function Routes() {
   const { workspace, workspaceRevision, loadError, reload, runtime, cloud, drafts, notify } = useStore();
   const parts = useHashRoute(() => {
@@ -45,20 +61,7 @@ function Routes() {
     return false;
   });
   const access = workspaceAccess(runtime, cloud, workspace, workspaceRevision);
-  const readyScreen = access === "sign-in" ? "sign-in" : workspace && access === "ready" && !loadError ? "dashboard" : null;
-  useEffect(() => {
-    if (!readyScreen || !window.recordMaker?.reportReady) return;
-    // Two frames allow the real screen to paint; a skeleton never counts as
-    // an interactive dashboard in native startup diagnostics.
-    let second = 0;
-    const first = requestAnimationFrame(() => {
-      second = requestAnimationFrame(() => {
-        void window.recordMaker?.reportReady?.(readyScreen).catch(error => console.error("Desktop readiness could not be reported", error));
-      });
-    });
-    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
-  }, [readyScreen]);
-  if (access === "sign-in") return <DesktopSignIn />;
+  if (access === "sign-in") return <PaintedScreen screen="sign-in"><DesktopSignIn /></PaintedScreen>;
   if (loadError) {
     return <div className="crm" style={{ display: "grid", placeItems: "center", padding: 24 }}>
       <div className="panel panel-pad" style={{ maxWidth: 480 }} role="alert">
@@ -87,7 +90,7 @@ function Routes() {
   else if (a === "template" && b) page = <TemplatePage sid={b} />;
   else if (a === "import" && b) page = <ImportPage sid={b} />;
   else page = <Dashboard />;
-  return <ErrorBoundary resetKey={parts.join("/")}>{page}</ErrorBoundary>;
+  return <ErrorBoundary resetKey={parts.join("/")}><Suspense fallback={<div className="crm" role="status" style={{ padding: 36 }}>Opening page…</div>}><PaintedScreen screen="dashboard">{page}</PaintedScreen></Suspense></ErrorBoundary>;
 }
 
 function App() {

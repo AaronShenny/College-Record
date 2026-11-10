@@ -3,7 +3,7 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Shell } from "@/components/shell";
 import { EmptyState, PageHead, href } from "@/components/kit";
 import { DocRow, GenerationForm } from "@/components/generate-panel";
-import { listDocuments, openDocument, type DocumentFile } from "@/lib/workflow-api";
+import { listDocuments, openDocument, exportSavedPdf, type DocumentFile } from "@/lib/workflow-api";
 import { activeSubjects, errMsg, useStore } from "@/hooks/use-workspace";
 
 export default function DocumentsPage({ sid: initialSid }: { sid?: string }) {
@@ -23,10 +23,26 @@ export default function DocumentsPage({ sid: initialSid }: { sid?: string }) {
     try { setDocs(await listDocuments()); } catch (e) { setDocsErr(errMsg(e)); setDocs(d => d ?? []); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh, docsVersion]);
+  useEffect(() => {
+    if (gen.state !== "running") return;
+    let busy = false;
+    const timer = window.setInterval(async () => {
+      if (busy || document.hidden) return;
+      busy = true;
+      try { await refresh(); } finally { busy = false; }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [gen.state, refresh]);
 
   const act = async (d: DocumentFile, action: "open" | "download") => {
     setOpening(d.id + action);
     try { await openDocument(d, action); } catch (e) { notify(errMsg(e), "error"); } finally { setOpening(null); }
+  };
+  const pdf = async (d: DocumentFile) => {
+    setOpening(d.id + "pdf");
+    try { await exportSavedPdf(d.id); await refresh(); notify("PDF saved. The original DOCX is unchanged."); }
+    catch (e) { notify(errMsg(e), "error"); }
+    finally { setOpening(null); }
   };
   const grouped = useMemo(() => {
     const m = new Map<string, DocumentFile[]>();
@@ -64,7 +80,7 @@ export default function DocumentsPage({ sid: initialSid }: { sid?: string }) {
               grouped.length === 0 ? <EmptyState mark="DOCX" title="No documents yet">Generated files are kept here as versions. Older versions are never replaced.</EmptyState> :
               grouped.map(([gid, list]) => <div key={gid} className="doc-group">
                 <div className="kicker" style={{ display: "flex", justifyContent: "space-between" }}><span>{nameOf(gid)}</span><span>{list.length}</span></div>
-                {list.map(d => <DocRow key={d.id} d={d} numbers={numbersOf(d)} desktop={runtime?.mode === "desktop"} opening={opening} act={act} />)}
+                {list.map(d => <DocRow key={d.id} d={d} numbers={numbersOf(d)} desktop={runtime?.mode === "desktop"} opening={opening} act={act} exportPdf={gen.state === "running" || opening ? undefined : pdf} />)}
               </div>)}
             {subject && <a className="inline-link small" style={{ marginTop: 8, display: "inline-block" }} href={href(`/subject/${subject.id}`)}>Back to {subject.name}</a>}
           </section>

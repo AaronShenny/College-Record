@@ -103,6 +103,47 @@ editing/saving during sync, and closing/reopening after a save. Record
 `renderer-interactive` with `screen: "dashboard"` and its `processAgeMs`; a
 sign-in screen or loading skeleton does not satisfy the dashboard target.
 
+### Performance and Office changes
+
+The observed successful graphics-disabled launch still needed 51.6 seconds;
+the generation request needed 204 seconds and returned a DOCX plus a Word/PDF
+failure. An additional attempt to open it through COM failed after 25 seconds.
+Those timings do not establish that the DOCX formatting engine itself was slow.
+
+The performance release reduces the main entry to a small bundle without Zod,
+minifies service bundles, excludes source maps and duplicated bundled Node
+dependencies from the installer, loads secondary renderer pages on demand, and
+initializes services alongside page loading instead of waiting for it to finish.
+It keeps account verification before cached records become accessible. Fonts
+ship only Latin subsets, with system fallback for other characters.
+Status requests are single-flight and less frequent for nonempty workspaces.
+Local program hydration and immutable Drive uploads use bounded concurrency;
+every upload settles before publishing the manifest or acknowledging sync.
+
+Native DOCX generation is committed to the generated-file index **before** PDF
+conversion. Documents refreshes while generation runs, so completed DOCX files
+can be opened or saved while Office is still exporting. A failed PDF does not
+remove the DOCX. After the first Office failure a batch skips subsequent PDF
+attempts rather than multiplying long startup failures. Saved DOCX rows have an
+**Export PDF** action to retry without regenerating the Word document.
+
+Open uses the Windows registered file association (normally Microsoft Word for
+DOCX), not COM activation. Windows must have a valid default application.
+PDF export still requires installed, activated Microsoft Word; it uses a
+separate bounded helper with dynamic COM dispatch instead of generated caches.
+Automation disables macros and link updates, uses an isolated temporary copy,
+and times out after 30 seconds. Cleanup never terminates a pre-existing Word
+instance; an owned Word process is terminated on timeout only after rechecking
+its creation time to avoid PID-reuse mistakes. Safe Office stage/error codes
+are included in failure messages and diagnostics. Office activation, missing
+Office, broken registration and user prompts cannot be repaired by this app.
+
+The installer build logs stage durations and installed/Python file counts and
+sizes, and writes `generated-artifacts/desktop/packaging-report.json`. These are
+build measurements, not a measurement of end-user installation time. They are
+also not proof of a 15-second installed Windows launch. Measure the next build
+on the affected Windows PC; Linux and mocked Office tests cannot certify that.
+
 ---
 
 ## Development and packaging

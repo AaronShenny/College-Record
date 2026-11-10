@@ -133,8 +133,9 @@ export class NativeWorkflows {
     if (!this.canWork && !["cloud-status", "configure-google", "connect-drive", "check-updates", "restart-update", "export-diagnostics"].includes(action)) {
       throw new Error("Sign in with your college Google account before accessing record data.");
     }
-    if (["inspect-template", "import-questions", "generate"].includes(action)) {
+    if (["inspect-template", "import-questions", "generate", "export-pdf"].includes(action)) {
       if (this.changing) throw new Error("Wait for the account change to complete.");
+      if (this.documents.busy) throw new Error("Document processing is already running. Wait for it to finish before starting another job.");
       try { return await this.documents.run(action, input); }
       finally { await this.sync.invalidateStatus(); }
     }
@@ -202,9 +203,10 @@ export class NativeWorkflows {
         return { saved: !chosen.canceled };
       }
       if (input.action !== "open") throw new Error("Invalid document action.");
-      if (item.format === "docx") return this.documents.run("open-word", { id: item.id });
+      // Opening an existing file does not require slow/fragile Office COM
+      // activation. Windows hands it to the user's registered document app.
       const error = await shell.openPath(filename);
-      if (error) throw new Error(error);
+      if (error) throw new Error("Windows could not open this document. Open Microsoft Word once to finish activation, and check the default app for this file type. The saved file was retained.");
       return { opened: true };
     }
     if (action === "source-folder") {

@@ -31,3 +31,9 @@ Use graphics acceleration disabled as the Windows compatibility default.
 **Why:** The user confirmed the same installed build opened with `--record-maker-disable-gpu` after accelerated launches stayed blank. Its log confirmed dashboard readiness, but took about 52 seconds, so this is not proof that the startup performance requirement is met.
 
 **How to apply:** Apply the compatibility policy before Electron is ready. Verify release startup without a special shortcut flag, and do not re-enable acceleration merely because it works on CI or another computer. Keep installation speed and remaining cold-start delay as separate investigations.
+
+Treat DOCX creation, Office opening, and Word PDF automation as separate operations.
+
+**Why:** An installed session returned a usable DOCX alongside a slow failed PDF attempt, then failed separately while opening through COM. The user clarified that Word opening and PDF export were problems; a DOCX being produced is not confirmation that the document workflow is correct.
+
+**How to apply:** Preserve the DOCX before invoking Office, make PDF failure recoverable without regenerating it, and do not terminate a student's existing Word session. Do not claim Office activation/installation issues or native Windows performance are fixed based on mocked or Linux checks.

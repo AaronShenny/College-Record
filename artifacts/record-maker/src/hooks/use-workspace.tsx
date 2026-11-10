@@ -172,15 +172,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [setStatus]);
 
   useEffect(() => { void reload(); }, [reload]);
-  const refreshCloud = useCallback(async () => {
+  const cloudRequest = useRef<Promise<CloudStatus | null> | null>(null);
+  const refreshCloud = useCallback(() => {
+    if (cloudRequest.current) return cloudRequest.current;
+    cloudRequest.current = (async () => {
       try { const c = await cloudStatus(); setCloud(previous => JSON.stringify(previous) === JSON.stringify(c) ? previous : c); setCloudError(null); return c; }
     catch (e) { setCloudError(errMsg(e)); return null; }
+    })().finally(() => { cloudRequest.current = null; });
+    return cloudRequest.current;
   }, []);
   useEffect(() => {
     void refreshCloud();
-    const t = window.setInterval(() => { if (document.visibilityState === "visible") void refreshCloud(); }, 4000);
+    const t = window.setInterval(() => { if (document.visibilityState === "visible") void refreshCloud(); }, workspace?.subjects.length ? 12000 : 4000);
     return () => window.clearInterval(t);
-  }, [refreshCloud]);
+  }, [refreshCloud, !!workspace?.subjects.length]);
 
   const startGeneration = useCallback((subjectId: string, programIds: string[], mode: "individual" | "combined", pdf: boolean) => {
     if (genRunning.current || !latest.current) return;

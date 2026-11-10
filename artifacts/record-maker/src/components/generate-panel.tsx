@@ -74,12 +74,14 @@ export function GeneratePanel({ subject, open, onClose }: { subject: Subject; op
   return <Modal open={open} onClose={onClose} title={`Generate · ${subject.name}`}><GenerationForm subject={subject} onLeave={onClose} /></Modal>;
 }
 
-export function DocRow({ d, numbers, desktop, opening, act }: { d: DocumentFile; numbers?: number[]; desktop: boolean; opening: string | null; act: (d: DocumentFile, a: "open" | "download") => void }) {
+export function DocRow({ d, numbers, desktop, opening, act, exportPdf }: { d: DocumentFile; numbers?: number[]; desktop: boolean; opening: string | null; act: (d: DocumentFile, a: "open" | "download") => void; exportPdf?: (d: DocumentFile) => void }) {
   return <div className="doc-row" data-testid={`doc-${d.id}`}>
     <span className={`doc-fmt ${d.format}`}>{d.format.toUpperCase()}</span>
     <div style={{ minWidth: 0, flex: 1 }}><b title={d.name}>{d.name}</b>
       <small>{fmtTime(d.createdAt)} · {(d.byteLength / 1024).toFixed(1)} KB{numbers?.length ? ` · programs ${numbers.map(pad).join(", ")}` : ""}</small></div>
     {desktop && <button className="btn small" disabled={opening === d.id + "open"} onClick={() => act(d, "open")} data-testid={`button-open-doc-${d.id}`}><ExternalLink size={12} /> Open</button>}
+    {desktop && d.format === "docx" && exportPdf && <button className="btn small" onClick={() => exportPdf(d)} data-testid="button-export-saved-pdf">Export PDF</button>}
+    {opening === d.id + "pdf" && <span role="status" className="hint">Exporting PDF…</span>}
     <button className="btn small" disabled={opening === d.id + "download"} onClick={() => act(d, "download")} data-testid={`button-download-doc-${d.id}`}><Download size={12} /> {desktop ? "Save as" : "Download"}</button>
   </div>;
 }

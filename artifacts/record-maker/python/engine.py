@@ -127,32 +127,10 @@ def make_record(doc, subject, programs, temp, combined=False):
             "dataBase64": base64.b64encode(raw).decode()}, path
 
 def pdf_record(record, filename):
-    if os.name != "nt":
-        raise ValueError("PDF export requires Microsoft Word on Windows. The DOCX version was retained.")
-    import pythoncom
-    import win32com.client
-    pythoncom.CoInitialize()
-    word = None
-    opened = None
-    try:
-        word = win32com.client.DispatchEx("Word.Application")
-        word.Visible = False
-        word.DisplayAlerts = 0
-        word.AutomationSecurity = 3  # Never enable macros from imported content.
-        opened = word.Documents.Open(str(filename.resolve()), ReadOnly=True, AddToRecentFiles=False, UpdateLinks=0)
-        output = filename.with_suffix(".pdf")
-        opened.ExportAsFixedFormat(str(output), 17)
-        raw = output.read_bytes()
-        return {**record, "id": str(uuid.uuid4()), "format": "pdf", "name": output.name,
-                "byteLength": len(raw), "dataBase64": base64.b64encode(raw).decode()}
-    except Exception as error:
-        raise ValueError("Microsoft Word PDF export failed. The DOCX version was retained; check Word installation and activation.") from error
-    finally:
-        if opened is not None:
-            opened.Close(False)
-        if word is not None:
-            word.Quit()
-        pythoncom.CoUninitialize()
+    from word_pdf import convert
+    raw = convert(filename)
+    return {**record, "id": str(uuid.uuid4()), "format": "pdf", "name": Path(record["name"]).with_suffix(".pdf").name,
+            "byteLength": len(raw), "dataBase64": base64.b64encode(raw).decode()}
 
 def generate(payload):
     workspace = payload["workspace"]
@@ -185,6 +163,13 @@ def generate(payload):
     return result
 
 def handle(action, payload):
+    if action == "export-pdf":
+        # Export a managed copy, not the saved DOCX: Word lock files and temporary
+        # conversion files must never pollute or modify the generated-file store.
+        with tempfile.TemporaryDirectory() as folder:
+            filename = Path(folder) / "record.docx"
+            filename.write_bytes(Path(payload["filename"]).read_bytes())
+            return {"documents": [pdf_record(payload["record"], filename)], "failures": []}
     if action == "open-word":
         if os.name != "nt":
             raise ValueError("Opening a record in Microsoft Word requires the installed Windows application.")

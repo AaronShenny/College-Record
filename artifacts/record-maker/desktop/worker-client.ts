@@ -6,7 +6,7 @@ import { diagnosticContext } from "./diagnostic-context";
 export class PythonWorker {
   private child?: ChildProcessWithoutNullStreams;
   private buffer = "";
-  private pending = new Map<string, { resolve: (result: WorkerResult) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
+  private pending = new Map<string, { resolve: (result: WorkerResult) => void; reject: (error: Error) => void; timer: NodeJS.Timeout; parentOperationId?: string }>();
   constructor(private command: string, private args: string[],
     private diagnostic: (details: Record<string, unknown>) => void = () => undefined) {}
   private start() {
@@ -31,6 +31,11 @@ export class PythonWorker {
           }
           const waiting = this.pending.get(response.id);
           if (!waiting) continue;
+          if (response.type === "progress" && ["engine-loading", "engine-ready"].includes(response.phase)) {
+            this.diagnostic({ stage: response.phase, operation: "workflow", ok: true, parentOperationId: waiting.parentOperationId,
+              durationMs: typeof response.durationMs === "number" ? response.durationMs : 0 });
+            continue;
+          }
           clearTimeout(waiting.timer);
           this.pending.delete(response.id);
           if (response.ok === true && response.protocol === 1 && typeof response.result === "object" && response.result !== null) {
@@ -65,7 +70,7 @@ export class PythonWorker {
       const timer = setTimeout(() => {
         this.stop("Python helper did not respond within 30 seconds. The job was stopped; your saved workspace is unchanged.");
       }, timeoutMs);
-      this.pending.set(id, { resolve, reject, timer });
+      this.pending.set(id, { resolve, reject, timer, parentOperationId: diagnosticContext.getStore() });
       this.child!.stdin.write(line, (error) => {
         if (error) this.stop("Could not send a job to the Python helper");
       });

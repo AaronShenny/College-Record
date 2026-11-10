@@ -7,6 +7,10 @@ files:
   - dist/desktop/**
   - dist/renderer/**
   - package.json
+  - "!node_modules{,/**}"
+  - "!**/*.map"
+extraMetadata:
+  dependencies: {}
 extraResources:
   - from: dist/runtime-config
     to: config

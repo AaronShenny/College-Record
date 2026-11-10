@@ -64,7 +64,13 @@ async function keepDocuments(documents: DocumentFile[]) {
   }); } finally { db.close(); }
 }
 export async function generateDocuments(workspace: Workspace, subjectId: string, programIds: string[], mode: "individual" | "combined", pdf: boolean): Promise<GenerationResult> {
-  const result = await feature<GenerationResult>("generate", { workspace: structuredClone(workspace), subjectId, programIds, mode, pdf });
+  const subject = workspace.subjects.find(item => item.id === subjectId);
+  if (!subject) throw new Error("The selected subject is missing.");
+  const selected = new Set(programIds);
+  // IPC/JSON serializes this immutable selection before yielding. Do not clone
+  // unrelated subjects, code and screenshot data on the UI thread.
+  const snapshot = { ...workspace, subjects: [{ ...subject, programs: subject.programs.filter(program => selected.has(program.id)) }] };
+  const result = await feature<GenerationResult>("generate", { workspace: snapshot, subjectId, programIds, mode, pdf });
   if (!window.recordMaker) await keepDocuments(result.documents);
   return result;
 }
@@ -88,6 +94,7 @@ export async function localSourceFolder(): Promise<SourceFile[]> {
 }
 export const cloudStatus = () => feature<CloudStatus>("cloud-status");
 export const exportDiagnostics = () => feature<{ saved: boolean }>("export-diagnostics");
+export const exportSavedPdf = (id: string) => feature<{ documents: DocumentFile[] }>("export-pdf", { id });
 export const connectDrive = () => feature<CloudStatus>("connect-drive");
 export const syncDrive = () => feature<CloudStatus>("sync-drive");
 export const configureGoogle = () => feature<CloudStatus>("configure-google");
