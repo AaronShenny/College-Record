@@ -6,7 +6,9 @@ import unittest
 import uuid
 from docx import Document
 from engine import generate, questions
-from templates import inspect, render, validate
+from templates import inspect, render, validate, paragraphs
+from docx.shared import Pt
+from docx.oxml.ns import qn
 
 def uid():
     return str(uuid.uuid4())
@@ -45,6 +47,100 @@ def subject_fixture():
     }
 
 class EngineTests(unittest.TestCase):
+    def test_windows_code_is_compact_without_changing_saved_source(self):
+        subject = subject_fixture()
+        source = 'import java.util.Scanner;\r\n\r\nclass Example {\r\n    String text = "a b";\r\n \t\r\n\t// indentation\r\n}\r\n'
+        subject["programs"][0]["sources"][0]["code"] = source
+        doc = render(subject, subject["programs"][0])
+        code = doc.paragraphs[2]
+        self.assertEqual(code.text, 'import java.util.Scanner;\nclass Example {\n    String text = "a b";\n\t// indentation\n}')
+        self.assertEqual(subject["programs"][0]["sources"][0]["code"], source)
+        self.assertEqual(code.paragraph_format.line_spacing, 1)
+        self.assertEqual(code.paragraph_format.space_before, Pt(0))
+        self.assertEqual(code.paragraph_format.space_after, Pt(0))
+        self.assertEqual(code._p.pPr.find(qn("w:snapToGrid")).get(qn("w:val")), "0")
+
+    def test_output_crlf_normalizes_without_removing_intentional_blank_lines(self):
+        subject = subject_fixture()
+        subject["programs"][0]["outputs"][0]["text"] = "one\r\ntwo\rthree\n\nfour"
+        doc = render(subject, subject["programs"][0])
+        self.assertEqual(doc.tables[0].cell(0, 0).text, "one\ntwo\nthree\n\nfour")
+
+    def test_template_fonts_are_default_and_overrides_are_independent(self):
+        subject = subject_fixture()
+        template = Document(io.BytesIO(base64.b64decode(subject["template"]["dataBase64"])))
+        marker = template.paragraphs[0].runs[1]
+        marker.font.name, marker.font.size = "Cambria", Pt(13.5)
+        subject["template"]["dataBase64"] = encoded(template)
+        for override, family, size in [({}, "Cambria", 13.5),
+                                        ({"fontFamily": "Arial"}, "Arial", 13.5),
+                                        ({"fontSizePt": 10.5}, "Cambria", 10.5),
+                                        ({"fontFamily": "Consolas", "fontSizePt": 9}, "Consolas", 9)]:
+            with self.subTest(override=override):
+                subject["template"]["mappings"]["[NO]"] = {"field": "number", "required": True, **override}
+                doc = render(subject, subject["programs"][0])
+                inserted = next(r for r in doc.paragraphs[0].runs if r.text == "3")
+                self.assertEqual(inserted.font.name, family)
+                self.assertEqual(inserted.font.size, Pt(size))
+                self.assertTrue(inserted.bold)
+                prefix = next(r for r in doc.paragraphs[0].runs if r.text == "Program ")
+                self.assertTrue(prefix.italic)
+                self.assertIsNone(prefix.font.name)
+                header = next(r for r in doc.sections[0].header.paragraphs[0].runs if r.text == "3")
+                if "fontFamily" in override:
+                    self.assertEqual(header.font.name, family)
+                if "fontSizePt" in override:
+                    self.assertEqual(header.font.size, Pt(size))
+
+    def test_default_font_inheritance_is_not_replaced_by_app_font(self):
+        subject = subject_fixture()
+        doc = render(subject, subject["programs"][0])
+        run = next(r for r in doc.paragraphs[2].runs if "print" in r.text)
+        self.assertIsNone(run.font.name)
+        self.assertIsNone(run.font.size)
+
+    def test_skipped_field_does_not_create_oversized_empty_font_run(self):
+        subject = subject_fixture()
+        subject["template"]["mappings"]["[TITLE]"] = {"field": "skip", "required": False, "fontSizePt": 400}
+        doc = render(subject, subject["programs"][0])
+        self.assertEqual(doc.paragraphs[1].text, "")
+        self.assertTrue(all(r.font.size is None for r in doc.paragraphs[1].runs))
+
+    def test_field_fonts_apply_in_combined_body_tables_and_custom_fields(self):
+        subject = subject_fixture()
+        subject["fields"] = [{"id": "note", "type": "text", "scope": "subject", "required": False}]
+        subject["values"] = {"note": "Shared note"}
+        template = Document(io.BytesIO(base64.b64decode(subject["template"]["dataBase64"])))
+        template.add_paragraph("[NOTE]")
+        subject["template"]["dataBase64"] = encoded(template)
+        subject["template"]["mappings"]["[NOTE]"] = {"field": "custom:note", "required": False, "fontFamily": "Georgia", "fontSizePt": 14}
+        subject["template"]["mappings"]["[CODE]"].update(fontFamily="Consolas", fontSizePt=9.5)
+        subject["template"]["mappings"]["[OUTPUT]"].update(fontFamily="Courier New", fontSizePt=10)
+        other = copy.deepcopy(subject["programs"][0])
+        other.update(id=uid(), number=1)
+        subject["programs"].append(other)
+        result = generate({"workspace": {"subjects": [subject]}, "subjectId": subject["id"],
+                           "programIds": [p["id"] for p in subject["programs"]], "mode": "combined", "pdf": False})
+        self.assertFalse(result["failures"])
+        doc = Document(io.BytesIO(base64.b64decode(result["documents"][0]["dataBase64"])))
+        all_runs = [run for p in paragraphs(doc) for run in p.runs]
+        for text, family, size in [("print", "Consolas", 9.5), ("one\ntwo", "Courier New", 10), ("Shared note", "Georgia", 14)]:
+            found = [r for r in all_runs if text in r.text]
+            self.assertEqual(len(found), 2)
+            for run in found:
+                self.assertEqual(run.font.name, family)
+                self.assertEqual(run.font.size, Pt(size))
+
+    def test_invalid_font_overrides_fail_explicitly(self):
+        for override in ({"fontSizePt": 0}, {"fontSizePt": 500}, {"fontSizePt": 12.3},
+                         {"fontSizePt": True}, {"fontSizePt": float("nan")},
+                         {"fontFamily": "bad\x00font"}, {"fontFamily": " "}):
+            with self.subTest(override=override):
+                subject = subject_fixture()
+                subject["template"]["mappings"]["[NO]"].update(override)
+                with self.assertRaisesRegex(ValueError, "font"):
+                    render(subject, subject["programs"][0])
+
     def test_inspection_finds_split_runs_tables_headers_and_footers(self):
         subject = subject_fixture()
         self.assertEqual(set(inspect(subject["template"]["dataBase64"])["placeholders"]),

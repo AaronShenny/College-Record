@@ -8,6 +8,9 @@ export const fieldSchema = z.object({
 }).strict();
 export const mappingSchema = z.object({
   field: z.string().min(1).max(120), required: z.boolean(),
+  fontFamily: z.string().min(1).max(120).regex(/^[^\x00-\x1f\x7f]+$/, "Enter a font name")
+    .refine(value => value.trim().length > 0, "Enter a font name").optional(),
+  fontSizePt: z.number().min(1).max(400).multipleOf(0.5).optional(),
   imageFit: z.enum(["width", "box"]).optional(),
   widthCm: z.number().positive().max(50).optional(), heightCm: z.number().positive().max(50).optional(),
 }).strict();

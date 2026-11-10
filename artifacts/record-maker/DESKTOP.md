@@ -110,6 +110,12 @@ the generation request needed 204 seconds and returned a DOCX plus a Word/PDF
 failure. An additional attempt to open it through COM failed after 25 seconds.
 Those timings do not establish that the DOCX formatting engine itself was slow.
 
+### Field typography and compact code (0.1.5)
+
+Template & mapping offers an optional font name and font size for each mapped text field, including text in the output sequence. Blank settings preserve the placeholder's DOCX typography independently; “Use template” clears both overrides. Font names refer to fonts available to Word on the Windows computer; choosing a name does not install that font. Image-only fields retain image sizing controls instead.
+
+Windows CRLF text is normalized before insertion so it cannot become two Word line breaks. Exported source listings are single-spaced with zero paragraph spacing and no empty lines; indentation, tabs and spaces within nonempty code lines remain. Saved source files are never rewritten. Ordinary text fields retain intentional blank lines. Typography settings are subject-level placeholder mappings, require mapping review after edits, and apply to newly generated individual and combined documents. Existing generated files are unchanged.
+
 The performance release reduces the main entry to a small bundle without Zod,
 minifies service bundles, excludes source maps and duplicated bundled Node
 dependencies from the installer, loads secondary renderer pages on demand, and

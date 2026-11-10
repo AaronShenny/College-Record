@@ -1,6 +1,6 @@
 """DOCX replacement adapted from the student's run-aware Word scripts.
 
-Retains the template's formatting rather than their old hard-coded fonts.
+Retains template typography unless a mapped field has an explicit override.
 Only student-supplied content is inserted; no AI or source execution.
 """
 from __future__ import annotations
@@ -14,6 +14,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.text.paragraph import Paragraph
 from docx.text.run import Run
+from docx.shared import Pt
 from PIL import Image
 
 TOKEN = re.compile(r"\[[A-Za-z][A-Za-z0-9_. -]{0,99}\]")
@@ -78,7 +79,7 @@ def inspect(encoded):
     tokens = sorted({m.group() for p in paragraphs(doc) for m in TOKEN.finditer(p.text)})
     if not tokens:
         raise ValueError("No [VARIABLE] placeholders were found in the template.")
-    return {"placeholders": tokens, "warnings": ["Single-section templates are supported, including nested tables and default/first/even headers and footers. Template formatting is retained."]}
+    return {"placeholders": tokens, "warnings": ["Single-section templates are supported, including nested tables and default/first/even headers and footers. Template typography is the default; optional field font overrides apply when set."]}
 
 def content(subject, program, field):
     if field == "skip":
@@ -164,7 +165,26 @@ def insert_value(paragraph, anchor, style, value, section, mapping):
             new_run().add_break()
         run = new_run()
         if item["kind"] == "text":
-            run.text = item["text"]
+            # python-docx treats CR and LF as separate breaks. Windows CRLF
+            # must be normalized before assigning run.text, not after export.
+            text = item["text"].replace("\r\n", "\n").replace("\r", "\n")
+            if mapping["field"].startswith("source:"):
+                # Compact the exported listing only. Never modify saved source
+                # code, indentation, tabs, or spaces inside string literals.
+                text = "\n".join(line for line in text.split("\n") if line.strip())
+                formatting = paragraph.paragraph_format
+                formatting.line_spacing = 1
+                formatting.space_before = Pt(0)
+                formatting.space_after = Pt(0)
+                props = paragraph._p.get_or_add_pPr()
+                grid = props.find(qn("w:snapToGrid"))
+                if grid is None:
+                    grid = OxmlElement("w:snapToGrid")
+                    props.insert_element_before(grid, "w:spacing")
+                grid.set(qn("w:val"), "0")
+            run.text = text
+            if text:
+                apply_font(run, mapping)
         else:
             raw = decode(item["dataUrl"].split(",", 1)[1], 9_000_000)
             with Image.open(io.BytesIO(raw)) as image:
@@ -175,6 +195,30 @@ def insert_value(paragraph, anchor, style, value, section, mapping):
             png.seek(0)
             run.add_picture(png, width=size[0], height=size[1])
     return anchor
+
+def apply_font(run, mapping):
+    """Override only inserted text; absent settings preserve copied run/style."""
+    family = mapping.get("fontFamily")
+    if family is not None:
+        if not isinstance(family, str) or not family.strip() or len(family) > 120 or re.search(r"[\x00-\x1f\x7f]", family):
+            raise ValueError("Choose a valid field font name.")
+        run.font.name = family.strip()
+        fonts = run._r.get_or_add_rPr().get_or_add_rFonts()
+        for script in ("ascii", "hAnsi", "eastAsia", "cs"):
+            fonts.set(qn("w:" + script), family.strip())
+        for theme in ("asciiTheme", "hAnsiTheme", "eastAsiaTheme", "cstheme", "csTheme"):
+            fonts.attrib.pop(qn("w:" + theme), None)
+    size = mapping.get("fontSizePt")
+    if size is not None:
+        if isinstance(size, bool) or not isinstance(size, (int, float)) or not 1 <= size <= 400 or size * 2 != int(size * 2):
+            raise ValueError("Choose a field font size from 1 to 400 pt in half-point steps.")
+        run.font.size = Pt(size)
+        props = run._r.get_or_add_rPr()
+        complex_size = props.find(qn("w:szCs"))
+        if complex_size is None:
+            complex_size = OxmlElement("w:szCs")
+            props.find(qn("w:sz")).addnext(complex_size)
+        complex_size.set(qn("w:val"), str(int(size * 2)))
 
 def render(subject, program):
     template = subject["template"]

@@ -87,11 +87,11 @@ Each custom field can have either whole-record or per-experiment value scope.
 
 **How to apply:** Whole-record values are entered once and reused across experiments; per-experiment values can differ for each experiment. Keep scope selectable rather than inferred from a field's name.
 
-Use template formatting only; do not provide field-level formatting overrides in the app.
+Use the DOCX template's font and size by default, with optional font and font-size overrides for every mapped text field.
 
-**Why:** The user selected “Use template formatting only.”
+**Why:** The user superseded the earlier template-only choice: “an option to add font , font size to every field. [default should be docx font and size]”.
 
-**How to apply:** Preserve the Word template's formatting when inserting mapped content. Do not carry proposed font/size override controls into the SRS. Image sizing and placeholder placement rules remain open.
+**How to apply:** Keep font and size independently optional, scoped to the subject's reusable placeholder mappings. Leaving either blank preserves that template property; do not impose a new default font or size. Export code compactly without extra blank lines, preserving indentation and spaces within code; never rewrite the stored source as a formatting side effect.
 
 Support template variables in body paragraphs, tables, headers, and footers.
 

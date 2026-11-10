@@ -233,6 +233,10 @@
 .crm .row-unmapped td{background:#fcf7f1}
 .crm .required-toggle{display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap}
 .crm .fit-row{display:flex;gap:4px} .crm .fit-row input{width:64px}
+.crm .field-font-controls{display:flex;flex-wrap:wrap;align-items:end;gap:6px;margin-bottom:7px}
+.crm .field-font-controls label{display:grid;gap:3px;font-size:10px;color:var(--muted)}
+.crm .field-font-controls label:first-child{flex:1;min-width:110px}
+.crm .field-font-controls input[type=number]{width:100px}
 .crm .mapping-foot{border-top:1px solid var(--line);padding:10px 15px;display:flex;justify-content:space-between;color:var(--muted);font-size:11px;gap:8px;flex-wrap:wrap}
 .crm .mapping-aside{display:grid;gap:12px;align-content:start}
 .crm .catalog-row{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #eeeae2;padding:8px 0} .crm .catalog-row small{display:block;color:var(--muted);font-size:11px}

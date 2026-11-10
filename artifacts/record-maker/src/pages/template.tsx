@@ -4,6 +4,7 @@ import { Shell } from "@/components/shell";
 import { EmptyState, Modal, PageHead, fmtTime, href } from "@/components/kit";
 import { ConfirmDialog } from "@/components/dialogs";
 import { FieldValue, setValue } from "@/components/field-values";
+import { FieldFontControls, FieldFontOptions } from "@/components/field-font-controls";
 import type { FieldDefinition, FieldMapping, Subject, TemplateConfig } from "@/lib/contracts";
 import { inspectTemplate } from "@/lib/workflow-api";
 import { errMsg, mapSubject, newId, nowIso, useStore } from "@/hooks/use-workspace";
@@ -70,6 +71,8 @@ export default function TemplatePage({ sid }: { sid: string }) {
       if (!f) return setMapping(ph, null);
       const old = tpl?.mappings[ph];
       const m: FieldMapping = { field: f, required: f === "skip" ? false : old?.required ?? false };
+      if (old?.fontFamily) m.fontFamily = old.fontFamily;
+      if (old?.fontSizePt) m.fontSizePt = old.fontSizePt;
       if (isImageField(f, subject)) { m.imageFit = old?.imageFit ?? "width"; if (old?.widthCm) m.widthCm = old.widthCm; if (old?.heightCm) m.heightCm = old.heightCm; }
       setMapping(ph, m);
     }}>
@@ -87,7 +90,7 @@ export default function TemplatePage({ sid }: { sid: string }) {
       <div className="page">
         <a className="btn small ghost" href={href(`/subject/${sid}`)} style={{ marginBottom: 12, paddingLeft: 0 }} data-testid="link-back-subject"><ArrowLeft size={13} /> {subject.name}</a>
         <PageHead eyebrow={`${subject.name} · subject setup`} title="Template & field mapping"
-          description="One Word template and one mapping set are reused for every program in this subject. Formatting comes only from the template."
+          description="Use the template’s font and size, or override either for an individual field. Settings are reused for every program."
           actions={<>
             <button className="btn" onClick={() => fileRef.current?.click()} disabled={busy} data-testid="button-upload-template"><FileUp size={13} /> {busy ? "Reading template…" : tpl ? "Replace template" : "Upload .docx"}</button>
             {tpl && <button className="btn primary" disabled={unmapped.length > 0 || tpl.reviewed || tpl.placeholders.length === 0} data-testid="button-save-reviewed"
@@ -126,21 +129,25 @@ export default function TemplatePage({ sid }: { sid: string }) {
               <div className="section-title"><div><h2>Detected placeholders</h2><p className="hint">The placeholder name does not decide the mapping. You do.</p></div></div>
               {tpl.placeholders.length === 0 ? <p className="hint" style={{ padding: "0 17px 17px" }}>No placeholders were found. Add markers to the Word file and replace the template.</p> :
               <div style={{ overflowX: "auto" }}><table className="table">
-                <thead><tr><th>Word placeholder</th><th>Mapped to</th><th>Required</th><th>Image fit</th></tr></thead>
+                <thead><tr><th>Word placeholder</th><th>Mapped to</th><th>Required</th><th>Formatting</th></tr></thead>
                 <tbody>{tpl.placeholders.map(ph => { const m = tpl.mappings[ph]; const img = m && isImageField(m.field, subject); return (
                   <tr key={ph} className={m ? "" : "row-unmapped"} data-testid={`row-placeholder-${ph}`}>
                     <td><span className="variable">{ph}</span>{!m && <small className="placement" style={{ color: "#93472f" }}>Unmapped</small>}</td>
                     <td style={{ minWidth: 200 }}>{fieldOptions(ph)}</td>
                     <td><label className="required-toggle"><input type="checkbox" className="check" disabled={!m || m.field === "skip"} checked={!!m?.required}
                       onChange={e => m && setMapping(ph, { ...m, required: e.target.checked })} data-testid={`check-required-${ph}`} />{m?.required ? "Required" : "Optional"}</label></td>
-                    <td>{img ? <div className="fit-row">
+                    <td style={{ minWidth: 220 }}>
+                      {m && m.field !== "skip" && !(m.field.startsWith("custom:") && subject.fields?.find(f => f.id === m.field.slice(7))?.type === "image") &&
+                        <FieldFontControls placeholder={ph} mapping={m} onChange={next => setMapping(ph, next)} />}
+                      {img ? <div className="fit-row">
                       <select value={m.imageFit ?? "width"} aria-label={`Image fit for ${ph}`} onChange={e => setMapping(ph, { ...m, imageFit: e.target.value as "width" | "box" })}><option value="width">Fit width</option><option value="box">Fit box</option></select>
                       <input type="number" min={0.5} max={50} step={0.1} placeholder="W cm" aria-label="Width cm" value={m.widthCm ?? ""} onChange={e => { const v = Number(e.target.value); const n = { ...m }; if (e.target.value && v > 0 && v <= 50) n.widthCm = v; else delete n.widthCm; setMapping(ph, n); }} />
                       {m.imageFit === "box" && <input type="number" min={0.5} max={50} step={0.1} placeholder="H cm" aria-label="Height cm" value={m.heightCm ?? ""} onChange={e => { const v = Number(e.target.value); const n = { ...m }; if (e.target.value && v > 0 && v <= 50) n.heightCm = v; else delete n.heightCm; setMapping(ph, n); }} />}
-                    </div> : <span className="muted" style={{ fontSize: 11 }}>Not an image</span>}</td>
+                    </div> : !m || m.field === "skip" ? <span className="muted" style={{ fontSize: 11 }}>—</span> : null}</td>
                   </tr>); })}</tbody>
               </table></div>}
-              <div className="mapping-foot"><span>Repeated markers share one mapping.</span><span>Images keep proportions and shrink to fit.</span></div>
+              <FieldFontOptions />
+              <div className="mapping-foot"><span>Blank font or size uses the template. Code is single-spaced, without blank lines; indentation stays intact.</span><span>Images keep proportions and shrink to fit.</span></div>
             </section>
 
             <aside className="mapping-aside">
