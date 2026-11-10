@@ -25,3 +25,9 @@ Record a broad diagnostic action history, not only slow operations.
 **Why:** The user requested logging of actions and background activity because timing-only logs could not explain failed sync and document jobs.
 
 **How to apply:** Include correlated starts/outcomes and responsiveness evidence, but never typed content, source, images, account information, credentials or raw exception text. Keep writes asynchronous and retention bounded so diagnostics do not introduce another performance problem.
+
+Use graphics acceleration disabled as the Windows compatibility default.
+
+**Why:** The user confirmed the same installed build opened with `--record-maker-disable-gpu` after accelerated launches stayed blank. Its log confirmed dashboard readiness, but took about 52 seconds, so this is not proof that the startup performance requirement is met.
+
+**How to apply:** Apply the compatibility policy before Electron is ready. Verify release startup without a special shortcut flag, and do not re-enable acceleration merely because it works on CI or another computer. Keep installation speed and remaining cold-start delay as separate investigations.

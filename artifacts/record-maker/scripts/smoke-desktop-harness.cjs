@@ -32,6 +32,11 @@ app.on("browser-window-created", (_event, window) => {
       await delay(100);
     }
     assert.ok(dashboard, "A loading window must not count as an interactive dashboard");
+    const startupRows = (await fs.readFile(path.join(directory, "logs/performance.jsonl"), "utf8"))
+      .trim().split("\n").map(line => JSON.parse(line));
+    const bootstrap = startupRows.find(row => row.event === "bootstrap" && row.sessionId === dashboard.sessionId);
+    assert.equal(bootstrap?.gpuDisabled, true, "Windows compatibility graphics must apply without a launch flag");
+    assert.equal(bootstrap?.graphicsPolicy, "windows-compatibility-default");
     await window.webContents.executeJavaScript(`(async () => {
       const w = await window.recordMaker.loadWorkspace();
       if (w.subjects.length !== 1) throw new Error("Unexpected disposable workspace");

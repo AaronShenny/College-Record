@@ -9,12 +9,12 @@ import type { NativeWorkflows } from "./native-workflows";
 import { PerformanceLog } from "./performance-log";
 import { diagnosticError, diagnosticOperation } from "./diagnostic-policy";
 import { parseRendererEvent } from "./renderer-diagnostics";
+import { configureGraphics } from "./graphics";
 
 let window: BrowserWindow | undefined;
 let services: NativeWorkflows | undefined;
 const processEntryAgeMs = Math.round(process.uptime() * 1000);
-const disableGpu = process.argv.includes("--record-maker-disable-gpu");
-if (disableGpu) app.disableHardwareAcceleration();
+const { disableGpu, graphicsPolicy } = configureGraphics(app, process.platform, process.argv);
 app.setName("College Record Maker");
 const devUrl = process.env.RECORD_MAKER_DEV_URL;
 if (devUrl && !/^http:\/\/127\.0\.0\.1:5173\/?$/.test(devUrl)) throw new Error("Desktop development renderer must be the local dev server");
@@ -27,7 +27,7 @@ else {
   app.whenReady().then(async () => {
     const started = performance.now();
     const diagnostics = new PerformanceLog(app.getPath("userData"), app.getVersion());
-    diagnostics.record("bootstrap", { processEntryAgeMs, processAgeMs: Math.round(process.uptime() * 1000), gpuDisabled: disableGpu });
+    diagnostics.record("bootstrap", { processEntryAgeMs, processAgeMs: Math.round(process.uptime() * 1000), gpuDisabled: disableGpu, graphicsPolicy });
     let resolveReady!: () => void;
     let rejectReady!: (error: unknown) => void;
     const ready = new Promise<void>((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });

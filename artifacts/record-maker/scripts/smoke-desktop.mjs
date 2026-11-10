@@ -27,7 +27,7 @@ try {
   const env = { ...process.env };
   for (const key of ["GOOGLE_DESKTOP_CLIENT_JSON", "GOOGLE_DESKTOP_CLIENT_JSON_PATH", "RECORD_MAKER_DEV_URL", "ELECTRON_RUN_AS_NODE"]) delete env[key];
   const electron = createRequire(import.meta.url)("electron");
-  const child = spawn(electron, [path.join(root, "scripts/smoke-desktop-harness.cjs"), directory, "--record-maker-disable-gpu"],
+  const child = spawn(electron, [path.join(root, "scripts/smoke-desktop-harness.cjs"), directory],
     { cwd: root, env, stdio: ["ignore", "ignore", "ignore"], shell: false });
   const code = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -43,7 +43,7 @@ try {
   }
   const result = JSON.parse(await fs.readFile(path.join(directory, "smoke-result.json"), "utf8"));
   if (!result.ok) throw new Error("Native Electron smoke check returned no success result.");
-  process.stdout.write(`Native Electron startup/save/reopen passed (disposable fixture, graphics disabled, dashboard process age ${result.dashboardProcessAgeMs} ms). This is not a real-account Windows performance certification.\n`);
+  process.stdout.write(`Native Electron startup/save/reopen passed (disposable fixture, default Windows graphics policy, dashboard process age ${result.dashboardProcessAgeMs} ms). This is not a real-account Windows performance certification.\n`);
 } finally {
   await fs.rm(directory, { recursive: true, force: true });
 }

@@ -84,12 +84,20 @@ Older `window-loaded` events included service initialization; versions 2 and 3
 measure the window path separately. A heartbeat is diagnostic evidence only,
 not proof that an external Word/Google operation is responsive.
 
-For a graphics comparison only, close all app instances and launch the installed
-EXE with `--record-maker-disable-gpu`. The flag does not clear files or change
-credentials and is recorded in the diagnostic log. Compare a normal launch and
-this launch on the same computer before attributing a freeze to graphics.
+Windows releases disable hardware acceleration before Electron becomes ready.
+This compatibility default follows an installed-app comparison where accelerated
+launches remained blank, while the same build opened with acceleration disabled.
+The successful measured launch still took approximately 52 seconds to reach the
+dashboard; this fixes the observed blank-window path, not the 15-second target
+or the separately reported slow installation.
 
-Windows acceptance checks: normal and graphics-disabled cold launches, repeated
+Existing `--record-maker-disable-gpu` shortcuts remain valid but are no longer
+needed on Windows. Bootstrap diagnostics include `gpuDisabled: true` and
+`graphicsPolicy: "windows-compatibility-default"` for normal Windows launches.
+The setting does not change records, credentials or Drive data. Non-Windows
+development retains its system graphics default unless the explicit flag is used.
+
+Windows acceptance checks: default-graphics cold launches without shortcut flags, repeated
 warm launches, a screenshot-heavy cached workspace, offline startup, slow Drive,
 editing/saving during sync, and closing/reopening after a save. Record
 `renderer-interactive` with `screen: "dashboard"` and its `processAgeMs`; a
@@ -152,8 +160,9 @@ The package step builds React and Electron, produces a Windows Python executable
 with PyInstaller, then builds a per-user NSIS installer containing both runtimes.
 Before packaging it also launches the compiled Electron renderer/preload and
 UtilityProcess against a disposable fixture, checks readiness, saves and reopens
-the fixture, and closes gracefully. That smoke check uses graphics-disabled
-mode without Google credentials; it is not an installed-app, real-account or
+the fixture, and closes gracefully. That smoke check verifies the default Windows
+graphics policy without a special launch flag and runs
+without Google credentials; it is not an installed-app, real-account or
 15-second performance certification.
 Outputs are in `generated-artifacts/desktop/`, excluded from Git and publishing.
 The initial configured target is Windows x64; native ARM64/32-bit targets and
