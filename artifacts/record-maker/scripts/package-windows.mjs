@@ -32,6 +32,7 @@ const diagnosticLauncher = path.join(root, "scripts/Start-Startup-Check.ps1").re
 run("powershell.exe", ["-NoProfile", "-Command",
   `$tokens=$null; $errorsFound=$null; [System.Management.Automation.Language.Parser]::ParseFile('${diagnosticLauncher}',[ref]$tokens,[ref]$errorsFound)|Out-Null; if($errorsFound){throw 'Invalid startup diagnostic launcher'}`]);
 run(process.execPath, [path.join(root, "scripts/smoke-startup-diagnostic.mjs")]);
+run(process.execPath, [path.join(root, "scripts/build-startup-trace.mjs")]);
 run(process.env.RECORD_MAKER_PYTHON || "python", [
   "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir", "--console",
   "--name", "record-maker-worker", "--distpath", "dist/python", "--workpath", "dist/pyinstaller",
@@ -53,10 +54,12 @@ await build({ projectDir: root, config: {
   extends: path.join(root, "electron-builder.yml"),
   ...(feed ? { publish: [{ provider: "generic", url: feed }], forceCodeSigning: true, win: { publisherName: publisherNames } } : {}),
 } });
+const installerBuildMs = Date.now() - installerStarted;
 const output = path.resolve(root, "../../generated-artifacts/desktop");
-for (const filename of ["Start-Startup-Check.cmd", "Start-Startup-Check.ps1"]) {
+for (const filename of ["Start-Startup-Check.cmd", "Start-Startup-Check.ps1", "Start-Windows-Trace.cmd", "STARTUP-TRACE-README.txt", "record-maker-startup-trace.exe"]) {
   if (!existsSync(path.join(output, "win-unpacked", filename))) throw new Error(`Installer is missing ${filename}`);
 }
+run(process.execPath, [path.join(root, "scripts/smoke-windows-trace.mjs"), path.join(output, "win-unpacked")]);
 const inventory = async (directory) => {
   let files = 0, bytes = 0;
   for (const entry of await asyncFs.readdir(directory, { withFileTypes: true })) {
@@ -70,7 +73,7 @@ const inventory = async (directory) => {
   return { files, bytes };
 };
 const report = {
-  installerBuildMs: Date.now() - installerStarted,
+  installerBuildMs,
   installed: await inventory(path.join(output, "win-unpacked")),
   python: await inventory(path.join(root, "dist/python/record-maker-worker")),
   note: "Build inventory only; installation/startup time must be measured on the target Windows PC.",

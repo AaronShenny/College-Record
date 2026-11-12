@@ -16,6 +16,12 @@ extraFiles:
     to: Start-Startup-Check.cmd
   - from: scripts/Start-Startup-Check.ps1
     to: Start-Startup-Check.ps1
+  - from: scripts/Start-Windows-Trace.cmd
+    to: Start-Windows-Trace.cmd
+  - from: scripts/STARTUP-TRACE-README.txt
+    to: STARTUP-TRACE-README.txt
+  - from: dist/diagnostics/record-maker-startup-trace.exe
+    to: record-maker-startup-trace.exe
 extraResources:
   - from: dist/runtime-config
     to: config

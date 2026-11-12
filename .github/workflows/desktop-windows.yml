@@ -1,13 +1,32 @@
 name: Build Windows desktop foundation
 on:
   workflow_dispatch:
+    inputs:
+      build_installer:
+        description: Also build the full installer
+        type: boolean
+        default: true
   push:
     branches:
       - main 
 permissions:
   contents: read
 jobs:
+  startup-trace-tools:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node artifacts/record-maker/scripts/build-startup-trace.mjs --standalone
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Startup-Trace-Tools
+          path: generated-artifacts/startup-trace-tools/*
+          if-no-files-found: error
   windows-installer:
+    if: github.event_name != 'workflow_dispatch' || inputs.build_installer
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

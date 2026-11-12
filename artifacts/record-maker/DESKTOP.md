@@ -33,6 +33,41 @@ For signed updates, supply HTTPS `RECORD_MAKER_UPDATE_URL`, exact certificate pu
 
 ### Startup and freeze diagnostics
 
+**Windows disk/paging trace (0.1.7 tools, compatible with the installed 0.1.6+
+app):** In the GitHub Windows workflow, download the separate
+`Startup-Trace-Tools` artifact as soon as its job finishes. A manual run can
+uncheck **Also build the full installer**; the tools job needs no dependencies,
+Google registration or signing secrets. Extract all files together, restart
+Windows, and run `Start-Windows-Trace.cmd` before opening the normal app. Select
+the already installed `College Record Maker.exe` if prompted; not the Setup
+installer. There is **no need to reinstall or download the full app**.
+
+The same trace launcher and counter executable are also included in the 0.1.7
+installer. Plain `Start-Startup-Check.cmd` remains uninstrumented, for comparison.
+Tracing is opt-in. The native .NET Framework collector starts before Electron,
+uses language-independent PDH counter names, and samples about every two seconds.
+It records aggregate physical-disk read/write latency, queue/throughput,
+available physical RAM, commit/pagefile usage, system CPU, and disk-backed
+page-ins/outs. Missing, warming-up and invalid counters are explicitly labeled,
+never substituted with zero. The collector reports its own CPU/working-set
+overhead. It runs for at most 150 seconds plus 10 seconds of watchdog grace,
+normally stopping when the test ends; the launcher may stop only its own
+collector PID. No process lists, private paths, disk instance labels, contents,
+credentials or network traffic are recorded. No elevation, cache deletion,
+security-policy changes or runtime downloads occur.
+
+Share the three original result files **plus `windows-counters.jsonl`**.
+Do not share `temporary-profile`. The collector's stop marker is not needed.
+Disk metrics combine all physical disks, and page-ins include mapped-file and
+executable reads, not only pagefile swapping. These counters identify resource
+pressure, not a particular antivirus product or file. Trace startup adds its own
+overhead; do not compare its total launch time as a zero-overhead benchmark.
+The tools job compiles and runs the real collector, validates its output and
+stop handling, verifies it never overwrites an existing trace, and checks
+PowerShell syntax. The full installer job additionally checks the packaged
+launcher with an isolated window. Linux checks cannot validate native Windows
+counters.
+
 **Isolated startup check (0.1.6):** After building and installing the Windows
 release, close the normal app. In the installed app folder, double-click
 `Start-Startup-Check.cmd`. The console shows where results are saved and opens
@@ -50,8 +85,9 @@ Each run writes `launcher.jsonl` immediately before launching Electron, plus
 `startup-summary.json` when it succeeds or reaches its internal deadline.
 If Electron never reaches application code, only the independent launcher log
 will exist. If the minimal renderer stalls, the app tries to end the test
-after 60 seconds from entry; the launcher limits the entire process to two
-minutes. A successful window closes after eight seconds. The results folder
+after 60 seconds from entry; the launcher waits at most two minutes after the
+process-start call returns. Slow Windows process creation adds to that time.
+A successful window closes after eight seconds. The results folder
 opens either way. Upload **only those three log/summary files**, if present;
 do not upload the `temporary-profile` folder. These logs contain fixed event
 names, timings, process types and memory, not record content, account IDs or
