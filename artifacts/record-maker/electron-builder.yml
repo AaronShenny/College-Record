@@ -11,6 +11,11 @@ files:
   - "!**/*.map"
 extraMetadata:
   dependencies: {}
+extraFiles:
+  - from: scripts/Start-Startup-Check.cmd
+    to: Start-Startup-Check.cmd
+  - from: scripts/Start-Startup-Check.ps1
+    to: Start-Startup-Check.ps1
 extraResources:
   - from: dist/runtime-config
     to: config

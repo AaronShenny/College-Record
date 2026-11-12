@@ -9,7 +9,9 @@ await viteBuild({ configFile: path.join(root, "vite.desktop.config.ts"), mode: "
 await rm(path.join(root, "dist/desktop"), { recursive: true, force: true });
 const desktop = await build({
   entryPoints: {
-    main: path.join(root, "desktop/main.ts"),
+    main: path.join(root, "desktop/entry.ts"),
+    application: path.join(root, "desktop/main.ts"),
+    "startup-diagnostic": path.join(root, "desktop/startup-diagnostic.ts"),
     preload: path.join(root, "desktop/preload.ts"),
     services: path.join(root, "desktop/native-workflows.ts"),
     background: path.join(root, "desktop/background.ts"),

@@ -33,6 +33,42 @@ For signed updates, supply HTTPS `RECORD_MAKER_UPDATE_URL`, exact certificate pu
 
 ### Startup and freeze diagnostics
 
+**Isolated startup check (0.1.6):** After building and installing the Windows
+release, close the normal app. In the installed app folder, double-click
+`Start-Startup-Check.cmd`. The console shows where results are saved and opens
+that folder after the test. This is a separate, minimal Electron window with
+the normal Windows software-graphics policy. It neither loads the React app
+nor reads account/Drive/records/Python/Word, and blocks network requests.
+The browser profile is freshly created under a dedicated diagnostic run folder;
+the normal profile and all student data are untouched. It remains available
+there for inspection rather than being automatically erased.
+If the installed folder is hard to find, right-click the app's Windows shortcut
+and choose **Open file location**, then repeat on the shortcut found there.
+
+Each run writes `launcher.jsonl` immediately before launching Electron, plus
+`logs/performance.jsonl` as the diagnostic process reaches milestones, and
+`startup-summary.json` when it succeeds or reaches its internal deadline.
+If Electron never reaches application code, only the independent launcher log
+will exist. If the minimal renderer stalls, the app tries to end the test
+after 60 seconds from entry; the launcher limits the entire process to two
+minutes. A successful window closes after eight seconds. The results folder
+opens either way. Upload **only those three log/summary files**, if present;
+do not upload the `temporary-profile` folder. These logs contain fixed event
+names, timings, process types and memory, not record content, account IDs or
+paths. If PowerShell is blocked by college policy, report that rather than
+changing system policy; the `.cmd` launcher does not modify the global policy.
+As a fallback, open Command Prompt in the installed app folder and run
+`"College Record Maker.exe" --record-maker-startup-diagnostic`. That still
+creates an isolated run under `%LOCALAPPDATA%\CollegeRecordMaker-StartupChecks`
+but lacks the launcher's before-Electron log and external time limit.
+
+Compare a cold startup with an immediate second startup. A fast minimal test
+narrows the cause to the full app's startup path or existing browser profile;
+a slow minimal test shifts attention to Electron/Windows initialization and
+disk/paging. It does not by itself identify the exact underlying cause or
+prove that the full app meets the 15-second goal. The normal app still uses
+the original profile and all current account and data safety checks.
+
 The target is an **interactive cached dashboard within 15 seconds** on the
 supported Windows test computer, not merely the appearance of a loading screen.
 First-time Google consent and uncached downloads depend on the network and are

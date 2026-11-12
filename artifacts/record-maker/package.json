@@ -1,6 +1,6 @@
 {
   "name": "@workspace/record-maker",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Windows college record maker — local desktop foundation",
   "author": "College Record Maker contributors",
   "main": "dist/desktop/main.cjs",
