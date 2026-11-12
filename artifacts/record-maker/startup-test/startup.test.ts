@@ -16,6 +16,26 @@ import { verifyIndexContent } from "./verify-index";
 // @ts-expect-error Diagnostic formatter is intentionally dependency-free JS.
 import { smokeEvidence } from "../scripts/tauri-smoke-evidence.mjs";
 
+function assertDeferredContentOrder(source: string) {
+  // Single-line markers work with both LF and Windows CRLF checkouts.
+  const ready = source.indexOf('await mark("responsive")');
+  const content = source.indexOf('document.querySelector<HTMLButtonElement>(\'[data-testid="summary-load-content"]\')!.click();');
+  assert.ok(ready >= 0, "Dashboard readiness marker must exist");
+  assert.ok(content > ready, "Full content must be requested after dashboard readiness");
+}
+
+test("deferred-content order check handles LF and CRLF and rejects missing or early loads", async () => {
+  const source = await readFile(path.join(import.meta.dirname, "summary.tsx"), "utf8");
+  const lf = source.replace(/\r\n/g, "\n");
+  for (const text of [lf, lf.replace(/\n/g, "\r\n")]) {
+    assertDeferredContentOrder(text);
+    assert.throws(() => assertDeferredContentOrder(text.replace('await mark("responsive")', "")));
+    assert.throws(() => assertDeferredContentOrder(text.replace('[data-testid="summary-load-content"]', "missing")));
+    const request = 'document.querySelector<HTMLButtonElement>(\'[data-testid="summary-load-content"]\')!.click();';
+    assert.throws(() => assertDeferredContentOrder(request + "\n" + text.replace(request, "")));
+  }
+});
+
 test("dashboard waits for hydration and never renders record consumers early", () => {
   let renders = 0;
   function DashboardConsumer() { renders++; return createElement("div", null, "Dashboard ready"); }
@@ -149,6 +169,6 @@ test("diagnostic build keeps production interfaces unchanged and network access 
   assert.ok(dashboard.indexOf('Object.defineProperty(window, "recordMaker"') < dashboard.indexOf('import("../src/hooks/use-workspace")'));
   const summary = await source("summary.tsx");
   assert.ok(!summary.includes("WorkspaceProvider") && !summary.includes("saveWorkspace"));
-  assert.ok(summary.indexOf('await mark("responsive")') < summary.indexOf("!.click();\n  const image"));
+  assertDeferredContentOrder(summary);
   assert.ok(summary.includes("verifyIndexContent(index, workspace)"));
 });
