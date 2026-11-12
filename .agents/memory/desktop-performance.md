@@ -32,6 +32,12 @@ Prefer isolating native workloads and measuring startup phases before migrating 
 
 **How to apply:** Preserve the existing data format while investigating native blocking, background work and graphics. Do not present cache deletion or a SQLite migration as a proven cure without connecting it to the slowdown. Measure cold-start disk/paging behavior; benchmark an alternative host before committing to a full migration. A successful warm baseline does not meet the cold-start dashboard requirement.
 
+Compare desktop hosts using external launch timing, labelled profile/cache conditions and both minimal and representative workloads.
+
+**Why:** Windows process creation and browser-profile provisioning can precede application timers. A fast minimal host or warm run can otherwise be mistaken for a working cold dashboard.
+
+**How to apply:** Start timing before launching the executable, separate runtime installation/fixture preparation from startup, and retain explicit caveats when comparing historical clocks or readiness milestones. Count successful interaction, not merely a window background, and distinguish process-tree working-set sums from unique physical RAM.
+
 Record a broad diagnostic action history, not only slow operations.
 
 **Why:** The user requested logging of actions and background activity because timing-only logs could not explain failed sync and document jobs.

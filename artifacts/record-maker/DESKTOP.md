@@ -1,5 +1,41 @@
 # Windows desktop application
 
+## Isolated Tauri startup comparison
+
+The **Tauri Startup Test** GitHub Actions workflow builds a separate release-mode
+Windows diagnostic ZIP named **Tauri-Startup-Test**. It does not replace Electron,
+read real records/credentials, or connect to Drive. No Google or signing secrets
+are required. Its Windows job compiles the Rust host and the two .NET collectors,
+then runs native minimal-page and synthetic-dashboard smoke checks before uploading
+the package. Those CI checks are not performance measurements of the affected PC.
+
+After pushing these changes, run that workflow and download/extract its artifact.
+Run `Prepare-Test.cmd` once, then follow `README.txt`: restart Windows, measure the
+minimal test cold and warm, restart again, and measure the dashboard cold and warm.
+The representative path uses the real React dashboard and `WorkspaceStore` through
+a bundled Node helper, with four synthetic subjects, eighty programs and eighty
+distinct PNG images. It intentionally excludes production OAuth, Drive and Python.
+
+The launcher measures before process creation; native milestones start at Rust
+entry. Readiness requires page milestones plus a native round trip and a real
+dashboard open/cancel interaction. Two animation frames are explicitly not a
+compositor first-paint measurement. Logs contain system pressure and aggregate
+owned-process-tree memory, not unrelated process names or student content.
+Working-set sums may double-count shared memory; private bytes are not resident RAM.
+
+Every completed run writes `comparison.json` alongside the raw logs; the included
+`Compare-Results.mjs` can combine multiple run folders. Historical Electron results
+are included with their different clock origins/milestones, not a misleading exact
+speedup ratio. A full migration remains a separate decision after affected-PC data.
+
+Local checks:
+`node artifacts/record-maker/scripts/build-tauri-startup.mjs --assets-only`,
+`pnpm --filter @workspace/record-maker exec tsc -p startup-test/tsconfig.json`,
+and `cargo test --locked --manifest-path artifacts/record-maker/startup-test/src-tauri/Cargo.toml`.
+The portable Rust protocol tests run with the development toolchain; the Windows
+workflow uses current stable Rust (the locked Tauri dependencies require Rust 1.90+).
+Actual Windows compilation and native WebView2 smoke checks require Windows.
+
 ## Current working paths
 
 The app now has real DOCX upload/inspection, reviewed placeholder mapping, custom subject/program text and image fields, PDF/CSV import with student review, copied source-file assignments, editable code, screenshot/text outputs, individual and combined DOCX generation, and saved generated versions. It never executes student code. Generation takes a frozen workspace copy and continues while the student edits another program.

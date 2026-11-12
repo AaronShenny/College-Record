@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Record Maker Tauri Startup Test",
+  "version": "0.1.0",
+  "identifier": "org.collegerecordmaker.startuptest",
+  "build": {
+    "frontendDist": "../../dist/tauri-startup-ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'",
+      "capabilities": []
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["../../dist/tauri-startup-icon.ico"]
+  }
+}

@@ -54,6 +54,7 @@ Thumbs.db
 .cache/
 .local/
 /generated-artifacts/
+**/src-tauri/target/
 __pycache__/
 *.pyc
 .pythonlibs/

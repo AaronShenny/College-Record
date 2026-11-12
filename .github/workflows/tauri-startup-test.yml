@@ -1,0 +1,54 @@
+name: Tauri Startup Test
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "artifacts/record-maker/startup-test/**"
+      - "artifacts/record-maker/scripts/*tauri*"
+      - ".github/workflows/tauri-startup-test.yml"
+permissions:
+  contents: read
+jobs:
+  windows-startup-test:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --frozen-lockfile
+      - name: Ensure WebView2 is available for CI smoke checks
+        shell: pwsh
+        run: |
+          $installed = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe" -ErrorAction SilentlyContinue
+          if (-not $installed) {
+            $bootstrapper = Join-Path $env:RUNNER_TEMP 'MicrosoftEdgeWebview2Setup.exe'
+            Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $bootstrapper
+            $signature = Get-AuthenticodeSignature $bootstrapper
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw 'WebView2 bootstrapper signature invalid' }
+            $p = Start-Process $bootstrapper -ArgumentList '/silent','/install' -Wait -PassThru
+            if ($p.ExitCode -notin @(0,3010)) { throw 'WebView2 prerequisite setup failed' }
+          }
+      - name: Build isolated comparison and run native checks
+        run: node artifacts/record-maker/scripts/build-tauri-startup.mjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Tauri-Startup-Test
+          path: |
+            generated-artifacts/tauri-startup-test/*
+            !generated-artifacts/tauri-startup-test/ci-smoke-results/**
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Tauri-Startup-CI-Evidence
+          path: generated-artifacts/tauri-startup-test/ci-smoke-results/**
+          if-no-files-found: ignore
