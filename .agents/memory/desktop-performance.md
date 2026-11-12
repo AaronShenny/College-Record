@@ -14,6 +14,12 @@ The app should load within 15 seconds.
 
 **How to apply:** Measure launch to an interactive dashboard on Windows, not just the appearance of a loading screen. Distinguish cached startup from first-time Google authorization and network-dependent downloads when reporting results.
 
+Target completing Drive downloads within 30 seconds, separately from application startup.
+
+**Why:** The user requested this target after testing on another PC where the app opened quickly but the initial Drive download remained slow.
+
+**How to apply:** Measure a full initial download separately from cached launches and unchanged sync checks. Do not claim the target is met based on an estimated concurrency speedup or by displaying the dashboard before required files are available; network conditions and workspace size affect completion time.
+
 The affected Windows computer uses an HDD and has roughly 4 GB of usable RAM.
 
 **Why:** The user confirmed HDD storage; their diagnostic logs showed the memory capacity, and their Task Manager capture showed high system memory use during a blank-window launch.
