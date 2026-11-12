@@ -2,7 +2,7 @@ import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 const events = new Set(["rust-entry", "host-setup", "profile-selected", "window-create-start",
-  "window-created", "page-load", "page-milestone", "interactive-ready", "test-finished",
+  "window-created", "page-load", "native-page-load", "page-milestone", "interactive-ready", "test-finished",
   "deadline", "host-error", "service-isolation-failed", "node-start-requested",
   "node-spawned", "fixture-loaded", "fixture-failed", "webview-browser-version"]);
 const stages = new Set(["scriptReady", "domReady", "loadFinished", "paintFrames", "dashboardPainted",
@@ -26,9 +26,11 @@ export function smokeEvidence(directory) {
       if (!events.has(row.event)) continue;
       const time = Number.isFinite(row.elapsedMs) ? row.elapsedMs : "?";
       const stage = stages.has(row.details?.stage) ? ` (${row.details.stage})` : "";
+      const page = row.event === "native-page-load" && ["Started", "Finished"].includes(row.details?.event)
+        ? ` (${row.details.event})` : "";
       const category = ["node-spawn", "job-isolation", "decode", "fixture-load", "service-io"].includes(row.details?.category)
         ? ` (${row.details.category})` : "";
-      lines.push(`  ${time}ms ${row.event}${stage}${category}`);
+      lines.push(`  ${time}ms ${row.event}${stage}${page}${category}`);
     } catch {}
   }
   // No raw exceptions, paths, fixture contents or unrelated JSON fields.

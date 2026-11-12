@@ -31,9 +31,11 @@ test("CI prints useful stages without copying private diagnostic fields", async 
   try {
     await writeFile(path.join(directory, "startup-summary.json"), JSON.stringify({ mode: "dashboard", result: "page-error", error: "PRIVATE" }));
     await writeFile(path.join(directory, "performance.jsonl"), JSON.stringify({
-      event: "page-milestone", elapsedMs: 123, details: { stage: "dashboardLoading", error: "PRIVATE" } }) + "\n");
+      event: "page-milestone", elapsedMs: 123, details: { stage: "dashboardLoading", error: "PRIVATE" } }) + "\n" +
+      JSON.stringify({ event: "native-page-load", elapsedMs: 124, details: { event: "Finished", path: "PRIVATE" } }) + "\n");
     assert.match(smokeEvidence(directory), /dashboardLoading/);
     assert.match(smokeEvidence(directory), /page-error/);
+    assert.match(smokeEvidence(directory), /native-page-load \(Finished\)/);
     assert.ok(!smokeEvidence(directory).includes("PRIVATE"));
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
