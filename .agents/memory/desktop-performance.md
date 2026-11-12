@@ -28,9 +28,9 @@ Record a broad diagnostic action history, not only slow operations.
 
 Use graphics acceleration disabled as the Windows compatibility default.
 
-**Why:** The user confirmed the same installed build opened with `--record-maker-disable-gpu` after accelerated launches stayed blank. Its log confirmed dashboard readiness, but took about 52 seconds, so this is not proof that the startup performance requirement is met.
+**Why:** The user confirmed the same installed build opened with `--record-maker-disable-gpu` after accelerated launches stayed blank. A later cold launch still stalled before the page loaded with acceleration already disabled. A successful graphics workaround is not proof that cold-start reliability or the startup performance requirement is met.
 
-**How to apply:** Apply the compatibility policy before Electron is ready. Verify release startup without a special shortcut flag, and do not re-enable acceleration merely because it works on CI or another computer. Keep installation speed and remaining cold-start delay as separate investigations.
+**How to apply:** Apply the compatibility policy before Electron is ready. Verify release startup without a special shortcut flag, and do not re-enable acceleration merely because it works on CI or another computer. Distinguish early Electron/page-loading stalls from later data and sync work. Low available RAM suggests resource pressure but does not prove paging, antivirus scanning, or disk contention without Windows measurements. Keep installation speed and remaining cold-start delay as separate investigations.
 
 Treat DOCX creation, Office opening, and Word PDF automation as separate operations.
 
