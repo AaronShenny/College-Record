@@ -18,7 +18,7 @@ const base = path.join(local, "CollegeRecordMaker-TauriChecks");
 run(path.join(directory, "node.exe"), [path.join(directory, "fixture-service.cjs"), "--prepare", path.join(base, "fixture-v1")]);
 const output = path.join(directory, "ci-smoke-results");
 mkdirSync(output, { recursive: true });
-for (const mode of ["minimal", "dashboard"]) {
+for (const mode of ["minimal", "dashboard", "dashboard-summary"]) {
   try {
     run("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
       path.join(directory, "Start-Tauri-Test.ps1"), "-Mode", mode, "-Condition", "ci", "-NoExplorer"]);
@@ -43,10 +43,19 @@ for (const mode of ["minimal", "dashboard"]) {
   assert.equal(launcher.exitCode, 0);
   assert.ok(launcher.launchToReadyObservedMs > 0);
   assert.ok(summary.milestones.interactionComplete > 0);
-  if (mode === "dashboard") assert.ok(summary.milestones.dashboardPainted > 0);
+  if (mode !== "minimal") assert.ok(summary.milestones.dashboardPainted > 0);
+  if (mode === "dashboard-summary") {
+    assert.equal(summary.detailVerification, "passed");
+    assert.ok(summary.milestones.detailRequested >= summary.readyAtMs);
+    assert.ok(summary.milestones.detailVerified > summary.milestones.detailRequested);
+    const events = readFileSync(path.join(latest, "performance.jsonl"), "utf8").trim().split(/\r?\n/).map(JSON.parse);
+    assert.ok(events.some(row => row.event === "summary-read-complete"));
+    const spawned = events.find(row => row.event === "node-start-requested");
+    assert.ok(spawned && spawned.elapsedMs >= summary.readyAtMs, "Node must not start before summary readiness");
+  }
   const counters = readFileSync(path.join(latest, "windows-counters.jsonl"), "utf8").trim().split(/\r?\n/).map(JSON.parse);
   assert.ok(inspectCounterTrace(counters).samples > 0);
   const memory = readFileSync(path.join(latest, "process-memory.jsonl"), "utf8").trim().split(/\r?\n/).map(JSON.parse);
   assert.ok(memory.some(row => row.workingSetBytes > 0));
 }
-console.log("Both native Tauri modes completed. CI timing is not an affected-PC benchmark.");
+console.log("All three native Tauri modes completed. CI timing is not an affected-PC benchmark.");

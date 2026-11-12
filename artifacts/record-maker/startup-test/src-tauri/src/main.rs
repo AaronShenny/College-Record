@@ -1,6 +1,7 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod protocol;
+mod summary;
 #[cfg(windows)]
 mod windows;
 

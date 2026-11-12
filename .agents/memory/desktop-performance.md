@@ -38,6 +38,12 @@ Compare desktop hosts using external launch timing, labelled profile/cache condi
 
 **How to apply:** Start timing before launching the executable, separate runtime installation/fixture preparation from startup, and retain explicit caveats when comparing historical clocks or readiness milestones. Count successful interaction, not merely a window background, and distinguish process-tree working-set sums from unique physical RAM.
 
+Keep lightweight dashboard summaries separate from fully loaded, editable workspace data.
+
+**Why:** Summary-first startup omits source and image payloads. Treating that partial view as a complete editable workspace could overwrite stored content with missing data.
+
+**How to apply:** Use an explicitly read-only summary contract until details are loaded. Report summary readiness separately from full-content availability, and never present a lighter diagnostic screen as production feature parity.
+
 Record a broad diagnostic action history, not only slow operations.
 
 **Why:** The user requested logging of actions and background activity because timing-only logs could not explain failed sync and document jobs.

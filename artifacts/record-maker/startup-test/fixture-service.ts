@@ -3,8 +3,10 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { deflateSync } from "node:zlib";
+import { randomUUID } from "node:crypto";
 import { WorkspaceStore } from "../desktop/store";
 import { workspaceSchema, type Workspace } from "../src/lib/contracts";
+import { dashboardIndex } from "./summary-index";
 
 const uuid = (n: number) => `10000000-0000-4000-8000-${n.toString(16).padStart(12, "0")}`;
 const date = "2026-01-01T00:00:00.000Z";
@@ -76,14 +78,30 @@ export async function runService(args: string[]) {
     if (!await store.pointer()) await store.save(syntheticWorkspace());
     const workspace = await store.load();
     if (JSON.stringify(workspace) !== JSON.stringify(syntheticWorkspace())) throw new Error("Unexpected fixture content");
-    console.log(JSON.stringify({ ok: true, subjects: 4, programs: 80, fixtureVersion: 1 }));
+    const pointer = await store.pointer();
+    if (!pointer) throw new Error("Fixture pointer unavailable");
+    const index = dashboardIndex(workspace, pointer.revisionId);
+    const temp = path.join(expected, `dashboard-index-${randomUUID()}.tmp`);
+    await fs.writeFile(temp, JSON.stringify(index), { flag: "wx" });
+    try { await fs.rename(temp, path.join(expected, "dashboard-index-v2.json")); }
+    finally { await fs.rm(temp, { force: true }); }
+    console.log(JSON.stringify({ ok: true, subjects: 4, programs: 80, fixtureVersion: 2 }));
     return;
   }
   if (!await store.pointer()) throw new Error("Run preparation before measuring startup");
   const reader = createInterface({ input: process.stdin, crlfDelay: Infinity });
   for await (const line of reader) {
     if (line !== "load") throw new Error("Unsupported test request");
-    console.log(JSON.stringify({ ok: true, workspace: await store.load() }));
+    const processAgeAtRequestMs = Math.round(process.uptime() * 1000);
+    const started = performance.now();
+    const workspace = await store.load();
+    const storeLoadMs = Math.round(performance.now() - started);
+    const encoding = performance.now();
+    const data = JSON.stringify(workspace);
+    const serializeMs = Math.round(performance.now() - encoding);
+    // One bounded protocol response; metrics contain no filenames or content.
+    console.log('{"ok":true,"workspace":' + data + ',"timings":' +
+      JSON.stringify({ processAgeAtRequestMs, storeLoadMs, serializeMs }) + '}');
   }
 }
 if (process.argv[2] === "--prepare" || process.argv[2] === "--serve") {

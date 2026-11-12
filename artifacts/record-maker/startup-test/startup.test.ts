@@ -11,6 +11,8 @@ import { compareResult, comparisonReport } from "../scripts/compare-tauri-startu
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { WorkspaceGate } from "./workspace-gate";
+import { dashboardIndex } from "./summary-index";
+import { verifyIndexContent } from "./verify-index";
 // @ts-expect-error Diagnostic formatter is intentionally dependency-free JS.
 import { smokeEvidence } from "../scripts/tauri-smoke-evidence.mjs";
 
@@ -53,6 +55,23 @@ test("synthetic data round-trips through the unchanged real snapshot engine", as
     assert.deepEqual(await new WorkspaceStore(directory).load(), fixture);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
+test("dashboard index contains actual metadata without source or screenshot payloads", () => {
+  const workspace = syntheticWorkspace();
+  const index = dashboardIndex(workspace, "10000000-0000-4000-8000-000000000001");
+  const data = JSON.stringify(index);
+  assert.equal(index.subjects.length, 4);
+  assert.equal(index.subjects.flatMap(s => s.programs).length, 80);
+  assert.equal(index.subjects[0].programs[0].title, workspace.subjects[0].programs[0].title);
+  assert.ok(Buffer.byteLength(data) < 32_000);
+  assert.ok(!data.includes("base64") && !data.includes("synthetic line") && !data.includes("dataUrl"));
+  verifyIndexContent(index, workspace);
+  const broken = structuredClone(workspace);
+  broken.subjects[0].programs[0].sources = [];
+  assert.throws(() => verifyIndexContent(index, broken), /does not match/);
+  const renamed = structuredClone(workspace);
+  renamed.subjects[0].programs[0].title = "wrong record";
+  assert.throws(() => verifyIndexContent(index, renamed), /does not match/);
+});
 test("bundled service prepares and serves only the isolated test root", async () => {
   const local = await mkdtemp(path.join(os.tmpdir(), "tauri-service-"));
   const root = path.join(local, "CollegeRecordMaker-TauriChecks", "fixture-v1");
@@ -62,11 +81,15 @@ test("bundled service prepares and serves only the isolated test root", async ()
   try {
     assert.equal(run(["--prepare", root]).status, 0);
     const first = await readFile(path.join(root, "current.json"), "utf8");
+    const index = JSON.parse(await readFile(path.join(root, "dashboard-index-v2.json"), "utf8"));
+    assert.deepEqual(index, dashboardIndex(syntheticWorkspace(), JSON.parse(first).revisionId));
     assert.equal(run(["--prepare", root]).status, 0);
     assert.equal(await readFile(path.join(root, "current.json"), "utf8"), first);
     const loaded = run(["--serve", root], "load\n");
     assert.equal(loaded.status, 0);
     assert.deepEqual(JSON.parse(loaded.stdout).workspace, syntheticWorkspace());
+    const timing = JSON.parse(loaded.stdout).timings;
+    assert.ok(timing.storeLoadMs >= 0 && timing.serializeMs >= 0 && timing.processAgeAtRequestMs >= 0);
     assert.notEqual(run(["--prepare", path.join(local, "production")]).status, 0);
     assert.notEqual(run(["--serve", root], "arbitrary-command\n").status, 0);
   } finally { await rm(local, { recursive: true, force: true }); }
@@ -99,6 +122,16 @@ test("comparison never treats minimal/CI/warm results as proof of cold dashboard
   assert.equal(compareResult(native, { ...launch, launchToReadyObservedMs: null }).within15Seconds, false);
   assert.equal(compareResult({ ...native, milestones: {} }, launch).within15Seconds, false);
   assert.throws(() => compareResult(native, { ...launch, profile: "reused" }));
+  const summary = { ...native, mode: "dashboard-summary", condition: "cold",
+    milestones: { ...native.milestones, dashboardPainted: 1200, detailRequested: 2000, detailVerified: 4000 } };
+  const summaryLaunch = { ...launch, mode: "dashboard-summary", condition: "cold" };
+  assert.equal(compareResult(summary, summaryLaunch).within15Seconds, false);
+  const verified = compareResult({ ...summary, detailVerification: "passed" }, summaryLaunch);
+  assert.equal(verified.within15Seconds, true);
+  assert.equal(compareResult({ ...summary, detailVerification: "passed",
+    milestones: { ...summary.milestones, detailRequested: 500 } }, summaryLaunch).within15Seconds, false);
+  assert.equal(verified.deferredContentDurationMs, 2000);
+  assert.match(comparisonReport([verified]).decision, /summary-only/);
 });
 test("diagnostic build keeps production interfaces unchanged and network access unavailable", async () => {
   const source = (name: string) => readFile(path.join(import.meta.dirname, name), "utf8");
@@ -114,4 +147,8 @@ test("diagnostic build keeps production interfaces unchanged and network access 
   assert.ok(!/from ["'].*(?:google-auth|drive-sync|worker-client|electron)/.test(service));
   const dashboard = await source("dashboard.tsx");
   assert.ok(dashboard.indexOf('Object.defineProperty(window, "recordMaker"') < dashboard.indexOf('import("../src/hooks/use-workspace")'));
+  const summary = await source("summary.tsx");
+  assert.ok(!summary.includes("WorkspaceProvider") && !summary.includes("saveWorkspace"));
+  assert.ok(summary.indexOf('await mark("responsive")') < summary.indexOf("!.click();\n  const image"));
+  assert.ok(summary.includes("verifyIndexContent(index, workspace)"));
 });

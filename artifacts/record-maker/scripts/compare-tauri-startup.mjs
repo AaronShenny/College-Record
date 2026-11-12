@@ -17,20 +17,31 @@ export const electronBaseline = [
 ];
 export function compareResult(native, launcher, memory = []) {
   if (native.host !== "tauri" || launcher.host !== "tauri" ||
-    !["minimal", "dashboard"].includes(native.mode) ||
+    !["minimal", "dashboard", "dashboard-summary"].includes(native.mode) ||
     native.mode !== launcher.mode || native.condition !== launcher.condition || native.profile !== launcher.profile) {
     throw new Error("Inconsistent benchmark summaries.");
   }
   const required = ["scriptReady", "domReady", "loadFinished", "paintFrames", "interactionComplete", "responsive",
-    ...(native.mode === "dashboard" ? ["dashboardPainted"] : [])];
+    ...(native.mode !== "minimal" ? ["dashboardPainted"] : [])];
   const complete = required.every(key => Number.isFinite(native.milestones?.[key])) && !("pageError" in (native.milestones || {}));
-  const ready = complete && native.result === "ready" && launcher.exitCode === 0 &&
+  const detailsComplete = native.mode !== "dashboard-summary" ||
+    (native.detailVerification === "passed" && Number.isFinite(native.milestones?.detailRequested) &&
+     Number.isFinite(native.milestones?.detailVerified) &&
+     native.milestones.detailRequested >= native.readyAtMs &&
+     native.milestones.detailVerified >= native.milestones.detailRequested);
+  const ready = complete && detailsComplete &&
+    native.result === "ready" && launcher.exitCode === 0 &&
     Number.isFinite(native.readyAtMs) && native.readyAtMs > 0 &&
     Number.isFinite(launcher.launchToReadyObservedMs) && launcher.launchToReadyObservedMs > 0;
   const samples = memory.filter(s => s.event === "process-tree-sample" &&
     s.status === "ok" && Number.isFinite(s.workingSetBytes) && Number.isFinite(s.privateBytes));
   return {
     mode: native.mode, condition: native.condition, profile: native.profile, result: native.result,
+    workload: native.mode === "dashboard-summary" ? "summary-first-rust" : native.mode === "minimal" ? "minimal" : "full-hydration-node",
+    detailVerification: native.detailVerification ?? "not-applicable",
+    detailVerifiedAtNativeMs: native.milestones?.detailVerified ?? null,
+    deferredContentDurationMs: Number.isFinite(native.milestones?.detailVerified) && Number.isFinite(native.milestones?.detailRequested)
+      ? native.milestones.detailVerified - native.milestones.detailRequested : null,
     launchToReadyObservedMs: ready ? launcher.launchToReadyObservedMs : null,
     clock: "external monotonic observation; upper bound with <=250ms polling delay",
     within15Seconds: ready ? launcher.launchToReadyObservedMs <= 15000 : false,
@@ -42,7 +53,9 @@ export function compareResult(native, launcher, memory = []) {
       ? "Build smoke check only. Not evidence about the affected PC."
       : native.mode === "minimal"
         ? "Host-only result. Does not establish the dashboard target or migration parity."
-        : "Synthetic cached dashboard; excludes authentication, Drive, Python and production migration.",
+        : native.mode === "dashboard-summary"
+          ? "Read-only summary dashboard, not the full production React dashboard. Native index first; all full synthetic records verified separately after readiness. Excludes sign-in, Drive, Python and editing."
+          : "Synthetic cached dashboard; excludes authentication, Drive, Python and production migration.",
   };
 }
 export function comparisonReport(results) {
@@ -53,6 +66,8 @@ export function comparisonReport(results) {
       ? "Await cold measurements on the affected 4 GB/HDD PC; do not decide from CI or warm launches."
       : cold.some(r => !r.within15Seconds)
         ? "At least one cold test missed the target or failed. Do not approve full migration from these results."
+        : cold.some(r => r.mode === "dashboard-summary")
+          ? "Promising summary-only cold dashboard result; compare its separate deferred-content time and verify production integration before migration."
         : cold.some(r => r.mode === "dashboard")
           ? "Promising cold synthetic-dashboard result; repeat cold runs and verify feature parity before migration."
           : "Minimal cold host succeeded; collect the representative cold dashboard result before deciding.",
@@ -61,6 +76,7 @@ export function comparisonReport(results) {
       "Compare fresh/reused profiles, cold/warm labels and traced/untraced runs separately.",
       "Process-tree working-set sums can double-count shared pages; private bytes are committed, not resident RAM.",
       "An empty or loading window is not a usable dashboard. This experiment is not full feature parity.",
+      "dashboard-summary is a different, explicitly lighter workload. Compare summary readiness and deferred-content time separately from the original full dashboard.",
     ],
   };
 }

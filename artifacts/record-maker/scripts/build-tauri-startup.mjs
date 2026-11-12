@@ -56,7 +56,7 @@ run("powershell.exe", ["-NoProfile", "-Command",
   `$t=$null;$e=$null;[System.Management.Automation.Language.Parser]::ParseFile('${launcher}',[ref]$t,[ref]$e)|Out-Null;if($e){throw 'Invalid Tauri test launcher syntax'}`]);
 const files = ["record-maker-tauri-startup.exe", "node.exe", "fixture-service.cjs", "record-maker-startup-trace.exe", "startup-process-memory.exe"];
 writeFileSync(path.join(destination, "build-inventory.json"), JSON.stringify({
-  benchmarkVersion: "0.1.0", builtAt: new Date().toISOString(), nodeVersion: process.version,
+  benchmarkVersion: "0.2.0", builtAt: new Date().toISOString(), nodeVersion: process.version,
   release: true, pythonBundled: false, productionMigration: false,
   webview2: "System Evergreen Runtime required; installation excluded from startup measurement",
   files: files.map(name => ({ name, bytes: statSync(path.join(destination, name)).size,

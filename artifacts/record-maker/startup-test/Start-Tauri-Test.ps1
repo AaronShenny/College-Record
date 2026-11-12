@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('minimal','dashboard')][string]$Mode,
+    [ValidateSet('minimal','dashboard','dashboard-summary')][string]$Mode,
     [ValidateSet('cold','warm','unknown','ci')][string]$Condition,
     [ValidateSet('fresh','reused')][string]$Profile = 'fresh',
     [switch]$NoExplorer,
@@ -7,8 +7,9 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if (-not $Mode) {
-    $pick = Read-Host 'Choose 1 for minimal host, 2 for real dashboard'
-    if ($pick -eq '1') { $Mode = 'minimal' } elseif ($pick -eq '2') { $Mode = 'dashboard' } else { exit 2 }
+    $pick = Read-Host 'Choose 1 minimal, 2 original full dashboard, 3 optimized summary-first dashboard'
+    if ($pick -eq '1') { $Mode = 'minimal' } elseif ($pick -eq '2') { $Mode = 'dashboard' }
+    elseif ($pick -eq '3') { $Mode = 'dashboard-summary' } else { exit 2 }
 }
 if (-not $Condition) {
     $pick = Read-Host 'First app test after Restart Windows? Enter cold, warm, or unknown'
@@ -16,8 +17,12 @@ if (-not $Condition) {
     $Condition = $pick
 }
 $base = Join-Path $env:LOCALAPPDATA 'CollegeRecordMaker-TauriChecks'
-if ($Mode -eq 'dashboard' -and -not (Test-Path (Join-Path $base 'fixture-v1\current.json'))) {
+if ($Mode -ne 'minimal' -and -not (Test-Path (Join-Path $base 'fixture-v1\current.json'))) {
     Write-Host 'Run Prepare-Test.cmd once first, then restart Windows before a cold test.'
+    exit 2
+}
+if ($Mode -eq 'dashboard-summary' -and -not (Test-Path (Join-Path $base 'fixture-v1\dashboard-index-v2.json'))) {
+    Write-Host 'Run the NEW Prepare-Test.cmd once to create the summary index, then restart Windows.'
     exit 2
 }
 $app = Join-Path $PSScriptRoot 'record-maker-tauri-startup.exe'

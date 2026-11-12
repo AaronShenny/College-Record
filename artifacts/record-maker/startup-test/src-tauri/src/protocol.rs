@@ -34,7 +34,7 @@ impl Options {
         let mode = get("--mode")?;
         let profile = get("--profile")?;
         let condition = get("--condition")?;
-        if !["minimal", "dashboard"].contains(&mode)
+        if !["minimal", "dashboard", "dashboard-summary"].contains(&mode)
             || !["fresh", "reused"].contains(&profile)
             || !["cold", "warm", "unknown", "ci"].contains(&condition)
         {
@@ -54,6 +54,7 @@ pub fn valid_stage(stage: &str) -> bool {
         "scriptReady", "domReady", "loadFinished", "paintFrames",
         "dashboardPainted", "interactionComplete", "responsive", "pageError",
         "dashboardLoading", "dashboardDataReady", "dashboardOpening", "dashboardClosing",
+        "detailRequested", "detailVerified",
     ]
     .contains(&stage)
 }
@@ -89,6 +90,8 @@ mod tests {
     #[test]
     fn excludes_arbitrary_paths_and_scenarios() {
         assert!(Options::parse(&args()).is_ok());
+        let mut summary = args(); summary[3] = "dashboard-summary".into();
+        assert!(Options::parse(&summary).is_ok());
         for (index, value) in [(1, "../../records"), (3, "production"), (5, "default"), (7, "private-path")] {
             let mut input = args(); input[index] = value.into();
             assert!(Options::parse(&input).is_err());
@@ -105,8 +108,10 @@ mod tests {
         }
         assert!(m.ready("minimal"));
         assert!(!m.ready("dashboard"));
+        assert!(!m.ready("dashboard-summary"));
         m.mark("dashboardPainted", 200);
         assert!(m.ready("dashboard"));
+        assert!(m.ready("dashboard-summary"));
         m.mark("pageError", 201);
         assert!(!m.ready("dashboard"));
     }

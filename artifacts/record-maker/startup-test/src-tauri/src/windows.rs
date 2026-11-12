@@ -57,12 +57,17 @@ impl State {
     }
     fn finish(&self, result: &str) {
         let milestones = self.milestones.lock().unwrap();
-        let summary = json!({"schemaVersion":1, "host":"tauri", "benchmarkVersion":"0.1.0",
+        let summary = json!({"schemaVersion":1, "host":"tauri", "benchmarkVersion":"0.2.0",
             "mode":self.options.mode, "condition":self.options.condition, "profile":self.options.profile,
             "clock":"milliseconds from Rust entry; launcher measures earlier process creation",
             "result":result, "readyAtMs":*self.ready.lock().unwrap(),
             "summaryUnixMs":SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
             "milestones":milestones.milestones, "graphicsPolicy":"software-compatibility",
+            "workload":match self.options.mode.as_str() {
+                "minimal" => "minimal", "dashboard-summary" => "summary-first-rust", _ => "full-hydration-node",
+            },
+            "detailVerification":if self.options.mode != "dashboard-summary" { "not-applicable" }
+                else if milestones.milestones.contains_key("detailVerified") { "passed" } else { "pending" },
             "productionFeatureParity":false});
         let temp = self.directory.join("summary.tmp");
         if fs::write(&temp, serde_json::to_vec_pretty(&summary).unwrap()).is_ok() {
@@ -93,6 +98,9 @@ fn probe(window: tauri::WebviewWindow, state: tauri::State<'_, Arc<State>>, stag
         return Err("Invalid benchmark signal.".into());
     }
     state.record("page-milestone", json!({"stage":stage}));
+    if stage == "detailVerified" {
+        state.finish("ready");
+    }
     if stage == "pageError" {
         state.finish("page-error");
         state.stop_service();
@@ -113,8 +121,27 @@ fn probe(window: tauri::WebviewWindow, state: tauri::State<'_, Arc<State>>, stag
 }
 
 #[tauri::command]
+async fn load_summary(window: tauri::WebviewWindow, state: tauri::State<'_, Arc<State>>) -> Result<Value, String> {
+    if window.label() != "startup" || state.options.mode != "dashboard-summary" {
+        return Err("Summary available only in the isolated summary test.".into());
+    }
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.record("summary-read-started", json!({}));
+        let base = state.fixture.parent().ok_or("Test directory unavailable.")?;
+        let index = crate::summary::read_index(base).map_err(|_| {
+            state.record("summary-read-failed", json!({}));
+            "Dashboard index unavailable. Run Prepare-Test.cmd."
+        })?;
+        state.record("summary-read-complete", json!({"subjects":4,"programs":80}));
+        serde_json::to_value(index).map_err(|_| "Invalid dashboard index.")
+    }).await.map_err(|_| "Summary operation failed.".to_owned())?
+        .map_err(String::from)
+}
+
+#[tauri::command]
 async fn load_fixture(window: tauri::WebviewWindow, state: tauri::State<'_, Arc<State>>) -> Result<Value, String> {
-    if window.label() != "startup" || state.options.mode != "dashboard" {
+    if window.label() != "startup" || !["dashboard", "dashboard-summary"].contains(&state.options.mode.as_str()) {
         return Err("This command is available only to the synthetic dashboard.".into());
     }
     let state = state.inner().clone();
@@ -148,10 +175,19 @@ async fn load_fixture(window: tauri::WebviewWindow, state: tauri::State<'_, Arc<
         // The native watchdog and independent launcher also bound blocked sidecar reads.
         s.output.by_ref().take(16 * 1024 * 1024).read_line(&mut line)
             .map_err(|_| "Service response failed.")?;
+        state.record("node-response-received", json!({}));
         let value: Value = serde_json::from_str(&line).map_err(|_| "Invalid fixture response.")?;
+        state.record("node-response-decoded", json!({}));
         if value.get("ok") != Some(&Value::Bool(true)) {
             return Err("Synthetic fixture could not be loaded.");
         }
+        let mut timings = serde_json::Map::new();
+        for key in ["processAgeAtRequestMs", "storeLoadMs", "serializeMs"] {
+            if let Some(ms) = value.get("timings").and_then(|t| t.get(key)).and_then(Value::as_u64) {
+                if ms <= 60_000 { timings.insert(key.into(), json!(ms)); }
+            }
+        }
+        state.record("node-service-timing", Value::Object(timings));
         state.record("fixture-loaded", json!({"subjects":4,"programs":80}));
         Ok(value["workspace"].clone())
     }).await.map_err(|_| "Fixture operation failed.".to_owned())?
@@ -198,7 +234,7 @@ pub fn run() {
     let exit_state = state.clone();
     let app = tauri::Builder::default()
         .manage(state.clone())
-        .invoke_handler(tauri::generate_handler![probe, load_fixture, browser_version])
+        .invoke_handler(tauri::generate_handler![probe, load_fixture, load_summary, browser_version])
         .setup(move |app| {
             let state = setup_state.clone();
             state.record("host-setup", json!({}));
@@ -207,14 +243,17 @@ pub fn run() {
             std::thread::spawn(move || loop {
                 std::thread::sleep(Duration::from_secs(1));
                 let ready = *watch.ready.lock().unwrap();
+                let details_done = watch.options.mode != "dashboard-summary"
+                    || watch.milestones.lock().unwrap().milestones.contains_key("detailVerified");
                 if let Some(ms) = ready {
-                    if watch.start.elapsed().as_millis() >= ms as u128 + (SETTLE_SECONDS * 1000) as u128 {
+                    if details_done && watch.start.elapsed().as_millis() >= ms as u128 + (SETTLE_SECONDS * 1000) as u128 {
                         watch.record("test-finished", json!({"result":"ready"}));
                         watch.stop_service();
                         handle.exit(0);
                         break;
                     }
-                } else if watch.start.elapsed() >= Duration::from_secs(DEADLINE_SECONDS) {
+                }
+                if watch.start.elapsed() >= Duration::from_secs(DEADLINE_SECONDS) {
                     watch.record("deadline", json!({}));
                     watch.finish("timeout");
                     watch.stop_service();
@@ -230,7 +269,9 @@ pub fn run() {
             state.record("profile-selected", json!({"requested":state.options.profile,
                 "previouslyExisted":profile.exists(),"isolated":true}));
             fs::create_dir_all(&profile)?;
-            let file = if state.options.mode == "minimal" { "minimal.html" } else { "dashboard.html" };
+            let file = match state.options.mode.as_str() {
+                "minimal" => "minimal.html", "dashboard-summary" => "summary.html", _ => "dashboard.html",
+            };
             state.record("window-create-start", json!({}));
             WebviewWindowBuilder::new(app, "startup", WebviewUrl::App(file.into()))
                 .title("Record Maker — isolated Tauri startup test")

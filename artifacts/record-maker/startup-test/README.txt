@@ -32,6 +32,24 @@ SECOND COMPARISON — REAL DASHBOARD
    closes. No production sign-in, sync, clipboard, editing or generation exists.
 10. Run it immediately again, choosing 2 and warm. Share both sets of files.
 
+OPTIMIZED COMPARISON — SUMMARY FIRST (NEW OPTION 3)
+11. Run the NEW Prepare-Test.cmd once, even if an older fixture exists.
+    It preserves the fixture and writes a small, revision-bound derived index.
+12. Restart Windows. Run Start-Tauri-Test.cmd, choose 3 and cold.
+13. A read-only React summary screen shows the same 4 subject names and 80
+    program summaries. Rust reads the small index directly; no Node startup,
+    source-file reads or image hydration is needed for dashboard readiness.
+    This is NOT the full production React dashboard; editing is disabled.
+14. The test selects/closes a program summary and confirms responsiveness.
+    That records dashboard readiness. It THEN automatically starts Node,
+    loads ALL full synthetic records through the unchanged storage engine,
+    compares them to the index, and displays the first code and screenshot.
+    This deferred check has its OWN timing; it is NOT hidden in startup time.
+    The run fails if deferred verification fails or exceeds the native deadline.
+15. Run option 3 again immediately, choosing warm. Share the two sets of logs.
+    Options 1 and 2 are retained; rerunning them is optional, not required.
+    No claim is made that option 3 equals the original option 2 workload.
+
 Fresh isolated WebView2 profiles are used by default, matching the earlier
 isolated Electron test. A warm launch means OS caches may be warm; its profile
 is still fresh. A separate reused-profile mode is available in PowerShell:
@@ -43,6 +61,12 @@ WHAT THE CLOCKS MEAN
 - launcher.jsonl records before Process.Start; launcher-summary.json reports
   launch-to-ready as a monotonic observed upper bound (polling <=250 ms late).
 - performance.jsonl records native host/window/page/service milestones.
+  summary-read-started/complete measures the Rust index path.
+  node-start-requested/spawned measures process startup and isolation.
+  node-service-timing separates store loading and JSON encoding; process age
+  at request also includes Node initialization and request waiting.
+  node-response-received/decoded measures native response parsing.
+  detailRequested/detailVerified bounds the deferred full-content check.
 - startup-summary.json contains native milestones from Rust entry. Its clock
   starts AFTER Windows begins launching the executable; do not confuse it with
   launch-to-ready. "paintFrames" is two animation frames, NOT a measured
@@ -52,6 +76,8 @@ WHAT THE CLOCKS MEAN
   committed bytes. Working-set sums can double-count shared pages; they are
   NOT unique physical RAM. Private bytes are NOT resident RAM.
 - Minimal success is NOT proof that a production dashboard meets 15 seconds.
+- Option 3 summary readiness is NOT full record-editor or document readiness.
+  Both the readiness time and deferred-content time must be reviewed.
 - Windows CI is a build/smoke check, NOT a measurement of your 4 GB/HDD PC.
 
 BOUNDS / TROUBLESHOOTING

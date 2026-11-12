@@ -8,6 +8,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "../dist/tauri-startup-ui"), emptyOutDir: true,
     rollupOptions: { input: { minimal: path.join(import.meta.dirname, "minimal.html"),
-      dashboard: path.join(import.meta.dirname, "dashboard.html") } },
+      dashboard: path.join(import.meta.dirname, "dashboard.html"),
+      summary: path.join(import.meta.dirname, "summary.html") } },
   },
 });
