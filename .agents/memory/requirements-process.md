@@ -339,11 +339,17 @@ Use the user's supplied `pdf_to_qns` script as the baseline for the future PDF q
 
 **How to apply:** Adapt this extractor in the PDF-import integration stage rather than substituting an AI service or unrelated extraction approach. Preserve student review before creating programs. The user said PDF extraction, Word templating, and combined documents were already checked; reuse those engines rather than repeating feasibility work.
 
-Use Electron + React + Python for the Windows desktop application.
+The user approved moving the Windows desktop application from Electron to Tauri and requested a migration plan before implementation.
 
-**Why:** The user explicitly chose “lets go with electron + react + python” during the technology discussion.
+**Why:** After the isolated summary-first cold-start test passed, the user said “Lets migrate. Prepare a plan.” This supersedes the earlier Electron stack selection.
 
-**How to apply:** Use this confirmed stack for the explicitly authorized desktop foundation. Stack selection alone was not permission to build; the later explicit implementation approval is.
+**How to apply:** Treat Tauri as the migration direction, preserving the existing product logic and Drive data. The staged migration plan proposes keeping React, bundled Node domain services and Python engines; those implementation stages still require plan acceptance and an explicit build assignment. Do not claim the diagnostic screen establishes production feature parity.
+
+Full migration must preserve all existing logic and architectural rules. Archive Electron-specific files separately for future reference before migrating, and reuse appropriate files only without introducing main-app lag.
+
+**Why:** The user explicitly required “full migration,” “preserving all the logic and all the architectural rules,” and moving Electron-related files to a separate folder first.
+
+**How to apply:** Classify Electron-specific adapters separately from reusable domain logic, retain a reference baseline, and assess reuse by loading behavior and measured performance rather than blindly keeping or rewriting files. Do not confuse archive planning with completed file moves.
 
 Version 1 must support automatic application updates.
 
