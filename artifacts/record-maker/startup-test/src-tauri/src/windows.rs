@@ -118,6 +118,7 @@ async fn load_fixture(window: tauri::WebviewWindow, state: tauri::State<'_, Arc<
         return Err("This command is available only to the synthetic dashboard.".into());
     }
     let state = state.inner().clone();
+    let diagnostic = state.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let mut service = state.service.lock().map_err(|_| "Service state unavailable.")?;
         if service.is_none() {
@@ -154,7 +155,17 @@ async fn load_fixture(window: tauri::WebviewWindow, state: tauri::State<'_, Arc<
         state.record("fixture-loaded", json!({"subjects":4,"programs":80}));
         Ok(value["workspace"].clone())
     }).await.map_err(|_| "Fixture operation failed.".to_owned())?
-        .map_err(str::to_owned)
+        .map_err(|reason| {
+            let category = match reason {
+                "Bundled Node service could not start." => "node-spawn",
+                "Could not isolate the diagnostic service." => "job-isolation",
+                "Invalid fixture response." => "decode",
+                "Synthetic fixture could not be loaded." => "fixture-load",
+                _ => "service-io",
+            };
+            diagnostic.record("fixture-failed", json!({"category":category}));
+            reason.to_owned()
+        })
 }
 
 pub fn run() {
@@ -245,7 +256,10 @@ pub fn run() {
         Ok(app) => app.run(move |_handle, event| {
             if let tauri::RunEvent::Exit = event {
                 exit_state.stop_service();
-                if exit_state.ready.lock().unwrap().is_none() { exit_state.finish("closed-before-ready"); }
+                let not_ready = exit_state.ready.lock().unwrap().is_none();
+                if not_ready && !exit_state.directory.join("startup-summary.json").is_file() {
+                    exit_state.finish("closed-before-ready");
+                }
             }
         }),
         Err(_) => { state.record("host-error", json!({})); state.finish("host-error"); state.stop_service(); }

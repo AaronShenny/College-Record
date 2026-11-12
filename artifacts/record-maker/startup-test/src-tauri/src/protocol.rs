@@ -53,6 +53,7 @@ pub fn valid_stage(stage: &str) -> bool {
     [
         "scriptReady", "domReady", "loadFinished", "paintFrames",
         "dashboardPainted", "interactionComplete", "responsive", "pageError",
+        "dashboardLoading", "dashboardDataReady", "dashboardOpening", "dashboardClosing",
     ]
     .contains(&stage)
 }

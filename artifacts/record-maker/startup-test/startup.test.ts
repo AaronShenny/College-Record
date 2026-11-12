@@ -8,6 +8,35 @@ import { syntheticWorkspace } from "./fixture-service";
 import { WorkspaceStore } from "../desktop/store";
 // @ts-expect-error Native report is intentionally dependency-free JS for the ZIP.
 import { compareResult, comparisonReport } from "../scripts/compare-tauri-startup.mjs";
+import React, { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { WorkspaceGate } from "./workspace-gate";
+// @ts-expect-error Diagnostic formatter is intentionally dependency-free JS.
+import { smokeEvidence } from "../scripts/tauri-smoke-evidence.mjs";
+
+test("dashboard waits for hydration and never renders record consumers early", () => {
+  let renders = 0;
+  function DashboardConsumer() { renders++; return createElement("div", null, "Dashboard ready"); }
+  const render = (loaded: boolean, failed = false) => renderToStaticMarkup(
+    createElement(WorkspaceGate, { loaded, failed, children: createElement(DashboardConsumer) }));
+  assert.match(render(false), /Loading synthetic/);
+  assert.equal(renders, 0);
+  assert.match(render(true), /Dashboard ready/);
+  assert.equal(renders, 1);
+  assert.throws(() => render(false, true), /could not be loaded/);
+  assert.equal(renders, 1);
+});
+test("CI prints useful stages without copying private diagnostic fields", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "tauri-evidence-"));
+  try {
+    await writeFile(path.join(directory, "startup-summary.json"), JSON.stringify({ mode: "dashboard", result: "page-error", error: "PRIVATE" }));
+    await writeFile(path.join(directory, "performance.jsonl"), JSON.stringify({
+      event: "page-milestone", elapsedMs: 123, details: { stage: "dashboardLoading", error: "PRIVATE" } }) + "\n");
+    assert.match(smokeEvidence(directory), /dashboardLoading/);
+    assert.match(smokeEvidence(directory), /page-error/);
+    assert.ok(!smokeEvidence(directory).includes("PRIVATE"));
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
 
 test("synthetic data round-trips through the unchanged real snapshot engine", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "tauri-fixture-"));

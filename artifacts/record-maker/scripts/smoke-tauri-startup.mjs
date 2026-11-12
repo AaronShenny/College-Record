@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { inspectCounterTrace } from "./startup-trace-contract.mjs";
+import { smokeEvidence } from "./tauri-smoke-evidence.mjs";
 if (process.platform !== "win32") throw new Error("Windows-only native smoke check.");
 const directory = path.resolve(process.argv[2]);
 const local = mkdtempSync(path.join(os.tmpdir(), "tauri-startup-smoke-"));
@@ -28,6 +29,7 @@ for (const mode of ["minimal", "dashboard"]) {
       for (const file of readdirSync(path.join(base, name)).filter(n => /\.(jsonl|json)$/.test(n))) {
         copyFileSync(path.join(base, name, file), path.join(dest, file));
       }
+      console.log(smokeEvidence(dest));
     }
   }
   const latest = readdirSync(base).filter(n => /^run-[a-f0-9]{32}$/.test(n))

@@ -1,5 +1,6 @@
 import type { DesktopBridge, Workspace } from "../src/lib/contracts";
 import { frames, invoke, mark, pageSignals, waitFor, fail } from "./signals";
+import { WorkspaceGate } from "./workspace-gate";
 
 const unavailable = async (): Promise<never> => { throw new Error("Disabled in startup comparison; real files and Drive are never accessed."); };
 let load: Promise<Workspace> | undefined;
@@ -23,20 +24,30 @@ Object.defineProperty(window, "recordMaker", { value: bridge, writable: false })
 
 async function run() {
   await pageSignals();
-  const [{ createRoot }, { WorkspaceProvider }, { default: Dashboard }] = await Promise.all([
+  const [{ createRoot }, { WorkspaceProvider, useStore }, { default: Dashboard }] = await Promise.all([
     import("react-dom/client"), import("../src/hooks/use-workspace"), import("../src/pages/dashboard"),
     import("../src/index.css"), import("../src/app.css"),
   ]);
-  createRoot(document.getElementById("root")!).render(<WorkspaceProvider><Dashboard /></WorkspaceProvider>);
+  function LoadedDashboard() {
+    const { workspace, runtime, loadError, runtimeError } = useStore();
+    return <WorkspaceGate loaded={!!workspace && !!runtime} failed={!!loadError || !!runtimeError}>
+      <Dashboard />
+    </WorkspaceGate>;
+  }
+  await mark("dashboardLoading");
+  createRoot(document.getElementById("root")!).render(<div className="crm"><WorkspaceProvider><LoadedDashboard /></WorkspaceProvider></div>);
   const button = await waitFor(() => document.querySelector<HTMLButtonElement>('[data-testid="button-new-subject"]'));
+  await mark("dashboardDataReady");
   const rows = document.querySelectorAll('[data-testid^="link-subject-"]');
   if (rows.length !== 4) throw new Error("Synthetic dashboard was not rendered");
   await frames();
   await mark("dashboardPainted");
+  await mark("dashboardOpening");
   button.click();
   await waitFor(() => document.querySelector('[data-testid="input-subject-name"]'));
   const cancel = document.querySelector<HTMLButtonElement>('[data-testid="button-cancel-subject"]');
   if (!cancel) throw new Error("Real dashboard interaction failed");
+  await mark("dashboardClosing");
   cancel.click();
   await waitFor(() => !document.querySelector('[data-testid="input-subject-name"]'));
   await frames();
