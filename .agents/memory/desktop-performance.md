@@ -14,6 +14,12 @@ The app should load within 15 seconds.
 
 **How to apply:** Measure launch to an interactive dashboard on Windows, not just the appearance of a loading screen. Distinguish cached startup from first-time Google authorization and network-dependent downloads when reporting results.
 
+The affected Windows computer uses an HDD and has roughly 4 GB of usable RAM.
+
+**Why:** The user confirmed HDD storage; their diagnostic logs showed the memory capacity, and their Task Manager capture showed high system memory use during a blank-window launch.
+
+**How to apply:** Include cold-versus-warm startup measurements on constrained Windows hardware when evaluating fixes. Do not assume an SSD, infer an app memory leak from overall RAM use, or present a hardware upgrade as a proven requirement without disk/paging measurements.
+
 Prefer isolating native workloads and measuring startup phases before migrating storage solely to resolve freezes.
 
 **Why:** A later Windows report showed long stalls without recorded workspace loads or saves. That evidence did not establish that whole-workspace persistence caused the freezes; low app working-set memory also does not rule out system memory/disk pressure. The user approved a targeted performance fix before a database rewrite.
