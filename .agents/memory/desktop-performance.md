@@ -22,9 +22,9 @@ The affected Windows computer uses an HDD and has roughly 4 GB of usable RAM.
 
 Prefer isolating native workloads and measuring startup phases before migrating storage solely to resolve freezes.
 
-**Why:** A later Windows report showed long stalls without recorded workspace loads or saves. That evidence did not establish that whole-workspace persistence caused the freezes; low app working-set memory also does not rule out system memory/disk pressure. The user approved a targeted performance fix before a database rewrite.
+**Why:** Windows cold-start failure was reproduced in a minimal Electron diagnostic with a fresh browser profile and no React, Python, Google, Drive, or record loading. The same diagnostic loaded on a warm launch. Feature-level work or a preexisting profile is therefore not necessary to reproduce the stall. This does not establish whether disk waits, paging, security scanning, shared startup instrumentation, or another native-host problem caused it. The user approved targeted investigation before a database rewrite.
 
-**How to apply:** Preserve the existing data format while investigating native blocking, background work and graphics. Do not present a SQLite migration as a proven cure without measurements that connect storage work to the slowdown.
+**How to apply:** Preserve the existing data format while investigating native blocking, background work and graphics. Do not present cache deletion or a SQLite migration as a proven cure without connecting it to the slowdown. Measure cold-start disk/paging behavior; benchmark an alternative host before committing to a full migration. A successful warm baseline does not meet the cold-start dashboard requirement.
 
 Record a broad diagnostic action history, not only slow operations.
 
