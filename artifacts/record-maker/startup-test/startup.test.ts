@@ -85,6 +85,20 @@ test("dashboard index contains actual metadata without source or screenshot payl
   assert.ok(Buffer.byteLength(data) < 32_000);
   assert.ok(!data.includes("base64") && !data.includes("synthetic line") && !data.includes("dataUrl"));
   verifyIndexContent(index, workspace);
+  // serde_json::Value sorts object keys on the native bridge. Key ordering
+  // must not change equality; subject/program array ordering still matters.
+  const nativeOrder = (value: any): any => Array.isArray(value) ? value.map(nativeOrder) :
+    value && typeof value === "object"
+      ? Object.fromEntries(Object.keys(value).sort().map(key => [key, nativeOrder(value[key])])) : value;
+  const bridged = nativeOrder(index);
+  assert.notEqual(JSON.stringify(bridged), JSON.stringify(index));
+  assert.doesNotThrow(() => verifyIndexContent(bridged, nativeOrder(workspace)));
+  const changedNative = structuredClone(bridged);
+  changedNative.subjects[0].programs[0].title = "incorrect native title";
+  assert.throws(() => verifyIndexContent(changedNative, workspace), /does not match/);
+  const reordered = structuredClone(bridged);
+  reordered.subjects[0].programs.reverse();
+  assert.throws(() => verifyIndexContent(reordered, workspace), /does not match/);
   const broken = structuredClone(workspace);
   broken.subjects[0].programs[0].sources = [];
   assert.throws(() => verifyIndexContent(index, broken), /does not match/);
