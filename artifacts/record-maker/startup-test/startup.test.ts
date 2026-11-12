@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { syntheticWorkspace } from "./fixture-service";
-import { WorkspaceStore } from "../desktop/store";
+import { WorkspaceStore } from "../services/store";
 // @ts-expect-error Native report is intentionally dependency-free JS for the ZIP.
 import { compareResult, comparisonReport } from "../scripts/compare-tauri-startup.mjs";
 import React, { createElement } from "react";

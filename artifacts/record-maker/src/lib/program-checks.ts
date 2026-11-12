@@ -1,6 +1,13 @@
 import type { Program, Subject } from "./contracts";
 
 export type ProgramCheck = { label: string; ok: boolean; field: string };
+export function programState(p: Program, s?: Subject): { tone: "good" | "warn" | "alert"; label: string; missing: string[] } {
+  const checks = programChecks(p, s);
+  const missing = checks.filter(c => !c.ok).map(c => c.label.toLowerCase());
+  if (missing.length === 0) return p.outputMayBeStale ? { tone: "warn", label: "Output may be outdated", missing } : { tone: "good", label: "Ready", missing };
+  if (missing.length === checks.length) return { tone: "alert", label: "Just started", missing };
+  return { tone: "warn", label: "Incomplete", missing };
+}
 export function requiredMappings(subject?: Subject): string[] {
   return Object.values(subject?.template?.mappings ?? {})
     .filter(mapping => mapping.required && mapping.field !== "skip")

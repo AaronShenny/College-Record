@@ -11,10 +11,16 @@
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.desktop.json --noEmit",
-    "desktop:build": "node scripts/build-desktop.mjs",
-    "desktop:dev": "node scripts/dev-desktop.mjs",
-    "desktop:package": "node scripts/package-windows.mjs",
-    "test:desktop": "tsx --test desktop/*.test.ts"
+    "desktop:build": "node legacy/electron/scripts/build-desktop.mjs",
+    "desktop:dev": "node legacy/electron/scripts/dev-desktop.mjs",
+    "desktop:package": "node legacy/electron/scripts/package-windows.mjs",
+    "test:desktop": "tsx --test services/*.test.ts",
+    "legacy:build": "node legacy/electron/scripts/build-desktop.mjs",
+    "legacy:package": "node legacy/electron/scripts/package-windows.mjs",
+    "legacy:dev": "node legacy/electron/scripts/dev-desktop.mjs",
+    "test:legacy": "tsx --test legacy/electron/desktop/*.test.ts",
+    "tauri:service:build": "node scripts/build-tauri-service.mjs",
+    "test:native-service": "tsx --test tauri/*.test.ts"
   },
   "devDependencies": {
     "@fontsource/dm-mono": "^5.3.0",

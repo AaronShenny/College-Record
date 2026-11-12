@@ -1,0 +1,67 @@
+name: Tauri migration foundation checks
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-foundation:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --frozen-lockfile
+      - run: python -m pip install -r artifacts/record-maker/python/build-requirements.txt
+      - name: Prepare evidence folder
+        shell: pwsh
+        run: node artifacts/record-maker/scripts/write-native-evidence.mjs
+      - name: Type checks
+        shell: pwsh
+        run: |
+          pnpm --filter @workspace/record-maker run typecheck 2>&1 | Tee-Object generated-artifacts/tauri-foundation/types.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Shared storage, Drive and document regressions
+        shell: pwsh
+        run: |
+          pnpm --filter @workspace/record-maker run test:desktop 2>&1 | Tee-Object generated-artifacts/tauri-foundation/shared-tests.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build preserved Electron reference
+        shell: pwsh
+        run: |
+          pnpm --filter @workspace/record-maker run legacy:build 2>&1 | Tee-Object generated-artifacts/tauri-foundation/legacy-build.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm --filter @workspace/record-maker run test:legacy 2>&1 | Tee-Object generated-artifacts/tauri-foundation/legacy-tests.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node artifacts/record-maker/legacy/electron/scripts/smoke-desktop.mjs 2>&1 | Tee-Object generated-artifacts/tauri-foundation/legacy-smoke.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build and test private native services
+        shell: pwsh
+        run: |
+          pnpm --filter @workspace/record-maker run tauri:service:build 2>&1 | Tee-Object generated-artifacts/tauri-foundation/service-build.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item artifacts/record-maker/dist/tauri-host/bundle-audit.json generated-artifacts/tauri-foundation/
+          pnpm --filter @workspace/record-maker run test:native-service 2>&1 | Tee-Object generated-artifacts/tauri-foundation/service-tests.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify Windows vault and owned process tree
+        shell: pwsh
+        run: |
+          $env:RECORD_MAKER_TEST_NODE = (Get-Command node).Source
+          cargo test --locked --manifest-path artifacts/record-maker/tauri/src-tauri/Cargo.toml 2>&1 | Tee-Object generated-artifacts/tauri-foundation/native-tests.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload evidence even when a check fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tauri-Migration-Foundation-Evidence
+          path: generated-artifacts/tauri-foundation/
+          if-no-files-found: warn

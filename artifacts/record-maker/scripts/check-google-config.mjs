@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { parseDesktopRegistration } from "../desktop/google-registration.mjs";
+import { parseDesktopRegistration } from "../services/google-registration.mjs";
 
 try {
   const text = process.env.GOOGLE_DESKTOP_CLIENT_JSON_PATH

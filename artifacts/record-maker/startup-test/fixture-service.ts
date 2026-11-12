@@ -4,7 +4,7 @@ import path from "node:path";
 import { createInterface } from "node:readline";
 import { deflateSync } from "node:zlib";
 import { randomUUID } from "node:crypto";
-import { WorkspaceStore } from "../desktop/store";
+import { WorkspaceStore } from "../services/store";
 import { workspaceSchema, type Workspace } from "../src/lib/contracts";
 import { dashboardIndex } from "./summary-index";
 

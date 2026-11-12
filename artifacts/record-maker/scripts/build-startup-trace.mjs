@@ -1,6 +1,6 @@
 // Built-in Node APIs and Windows' own .NET Framework compiler; no npm packages.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
@@ -19,9 +19,6 @@ const run = (command, args, options = {}) => {
   if (result.status !== 0) throw new Error(`Windows trace check failed (${result.status}): ${result.stdout || ""} ${result.stderr || ""}`);
   return result;
 };
-const launcher = path.join(root, "scripts/Start-Startup-Check.ps1").replaceAll("'", "''");
-run("powershell.exe", ["-NoProfile", "-Command",
-  `$t=$null; $e=$null; [System.Management.Automation.Language.Parser]::ParseFile('${launcher}',[ref]$t,[ref]$e)|Out-Null; if($e){throw 'Invalid startup launcher syntax'}`]);
 run(framework, ["/nologo", "/optimize+", "/target:exe", "/platform:anycpu",
   `/out:${executable}`, path.join(root, "scripts/windows-startup-trace.cs")]);
 
@@ -46,13 +43,3 @@ try {
   console.log(`Native Windows resource-counter smoke passed: ${JSON.stringify(result)}`);
   if (!result.validCounterSamples) console.warn("This runner had no valid PDH rate samples; individual unavailable states were reported explicitly.");
 } finally { rmSync(scratch, { recursive: true, force: true }); }
-
-if (process.argv.includes("--standalone")) {
-  const tools = path.resolve(root, "../../generated-artifacts/startup-trace-tools");
-  mkdirSync(tools, { recursive: true });
-  copyFileSync(executable, path.join(tools, path.basename(executable)));
-  for (const filename of ["Start-Windows-Trace.cmd", "Start-Startup-Check.ps1", "STARTUP-TRACE-README.txt"]) {
-    copyFileSync(path.join(root, "scripts", filename), path.join(tools, filename));
-  }
-  console.log("Standalone startup trace tools staged; the existing 0.1.6+ app does not need reinstalling.");
-}

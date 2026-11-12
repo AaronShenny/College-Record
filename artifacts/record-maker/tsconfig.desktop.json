@@ -7,5 +7,5 @@
     "esModuleInterop": true,
     "resolveJsonModule": true
   },
-  "include": ["desktop/**/*.ts", "src/lib/contracts.ts"]
+  "include": ["services/**/*.ts", "tauri/**/*.ts", "legacy/electron/desktop/**/*.ts", "src/lib/contracts.ts"]
 }

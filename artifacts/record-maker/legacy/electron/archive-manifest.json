@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "453717e7f5d6b641b2dcd97a52f71cf10c0e2841",
+  "purpose": "Electron reference source. Import/build paths may be adapted after relocation; baseline contains original contents.",
+  "files": [
+    {
+      "original": "desktop/main.ts",
+      "archived": "legacy/electron/desktop/main.ts",
+      "sha256BeforeRelocation": "1bc8635f553d72b75570cb4a35de7fce121e8e1d2294c98d2c05d4e9571b777c"
+    },
+    {
+      "original": "desktop/preload.ts",
+      "archived": "legacy/electron/desktop/preload.ts",
+      "sha256BeforeRelocation": "34ebd98cf42e3ecbeb1daa7951fd665c983334339851a0b10b2c604c5209e742"
+    },
+    {
+      "original": "desktop/entry.ts",
+      "archived": "legacy/electron/desktop/entry.ts",
+      "sha256BeforeRelocation": "c6d6cea8be853f60851e315a2fd434f30fb93a9a8bdb3031cccdf6faefa6f60d"
+    },
+    {
+      "original": "desktop/native-workflows.ts",
+      "archived": "legacy/electron/desktop/native-workflows.ts",
+      "sha256BeforeRelocation": "777cfda8680fda38ef347892954ff95f20a0c807d4ebe12521f89c8acbc46bab"
+    },
+    {
+      "original": "desktop/updates.ts",
+      "archived": "legacy/electron/desktop/updates.ts",
+      "sha256BeforeRelocation": "1afcdd21ecff4f82ffbb13cddae00e909d9ca75fb12870fb8f8992131a6005f3"
+    },
+    {
+      "original": "desktop/graphics.ts",
+      "archived": "legacy/electron/desktop/graphics.ts",
+      "sha256BeforeRelocation": "25e35ce96807cf938dda93c2f005dfcf85eb804df70e31596203004425e4879e"
+    },
+    {
+      "original": "desktop/graphics.test.ts",
+      "archived": "legacy/electron/desktop/graphics.test.ts",
+      "sha256BeforeRelocation": "b4b23e2cb5fe95776add831eff87168089193875baa6a804c53e57caaf301a7d"
+    },
+    {
+      "original": "desktop/startup-diagnostic.ts",
+      "archived": "legacy/electron/desktop/startup-diagnostic.ts",
+      "sha256BeforeRelocation": "2577842e9b1df9416907f425de888c4a5749fd69bb2e598d87c61bf50244272d"
+    },
+    {
+      "original": "desktop/startup-diagnostic-core.ts",
+      "archived": "legacy/electron/desktop/startup-diagnostic-core.ts",
+      "sha256BeforeRelocation": "e0f303af369feb76f2cb7e5ab310803a15d3cccb73ceb80b3d664c0aee44cbe3"
+    },
+    {
+      "original": "desktop/startup-diagnostic-page.ts",
+      "archived": "legacy/electron/desktop/startup-diagnostic-page.ts",
+      "sha256BeforeRelocation": "4774c923d4bfbd5c41b575e46750ed497d411ae310065208f18fe3d0d19b98ae"
+    },
+    {
+      "original": "desktop/startup-diagnostic.test.ts",
+      "archived": "legacy/electron/desktop/startup-diagnostic.test.ts",
+      "sha256BeforeRelocation": "6c2a18ae65bb8343b6bb398d4b98b1882a4f9c3eed53c4db6114a657158ba1d3"
+    },
+    {
+      "original": "scripts/build-desktop.mjs",
+      "archived": "legacy/electron/scripts/build-desktop.mjs",
+      "sha256BeforeRelocation": "a59ab66565b592176ed6eb601e6db764a8923e8795a7fb34a398f81a17622d81"
+    },
+    {
+      "original": "scripts/dev-desktop.mjs",
+      "archived": "legacy/electron/scripts/dev-desktop.mjs",
+      "sha256BeforeRelocation": "12845c7bfd116f2f4972ef317afd710d3883d37210696909073c0905c4bf62bb"
+    },
+    {
+      "original": "scripts/package-windows.mjs",
+      "archived": "legacy/electron/scripts/package-windows.mjs",
+      "sha256BeforeRelocation": "7fb17ed09ac801206ffc1e14c7ef9a955e1d5ec0aa85d6859c0340896a176cb5"
+    },
+    {
+      "original": "scripts/smoke-desktop.mjs",
+      "archived": "legacy/electron/scripts/smoke-desktop.mjs",
+      "sha256BeforeRelocation": "a4d65980afa1047fefbc1bdb7fdece9a91ab42e6cba122ec02ab55cd86f8b025"
+    },
+    {
+      "original": "scripts/smoke-desktop-harness.cjs",
+      "archived": "legacy/electron/scripts/smoke-desktop-harness.cjs",
+      "sha256BeforeRelocation": "6b72c77a5b61a5d2e71a529f896be272051bf507c49c575d29cb5a55a9227bf2"
+    },
+    {
+      "original": "scripts/smoke-startup-diagnostic.mjs",
+      "archived": "legacy/electron/scripts/smoke-startup-diagnostic.mjs",
+      "sha256BeforeRelocation": "90415a3e4f7d384432b83df454b12720342fcc3979c9b3ad9a79ff7faa1ab0a5"
+    },
+    {
+      "original": "scripts/Start-Startup-Check.cmd",
+      "archived": "legacy/electron/scripts/Start-Startup-Check.cmd",
+      "sha256BeforeRelocation": "8fb21ecf5ed725bd3448ec3e5e60ccfd5f35db29288a586e808c0d888f197cc0"
+    },
+    {
+      "original": "scripts/Start-Startup-Check.ps1",
+      "archived": "legacy/electron/scripts/Start-Startup-Check.ps1",
+      "sha256BeforeRelocation": "e24d26b498c247ba238ac08a26b6b442799ba95ffa220e28f463d7d5d736e7e0"
+    },
+    {
+      "original": "scripts/Start-Windows-Trace.cmd",
+      "archived": "legacy/electron/scripts/Start-Windows-Trace.cmd",
+      "sha256BeforeRelocation": "e6a6b04851bf17e0388cfc0245e1d662c309178cceb44130463a504046c319bf"
+    },
+    {
+      "original": "scripts/STARTUP-TRACE-README.txt",
+      "archived": "legacy/electron/scripts/STARTUP-TRACE-README.txt",
+      "sha256BeforeRelocation": "932e5e46022e487606584708fae124f761e4e9a734117a5377f8ae1b4f3525e2"
+    },
+    {
+      "original": "electron-builder.yml",
+      "archived": "legacy/electron/electron-builder.yml",
+      "sha256BeforeRelocation": "512a55365f352f210d368de311fb3ae5d0b36a69b2703227e40ec757194387b2"
+    },
+    {
+      "original": "scripts/smoke-windows-trace.mjs",
+      "archived": "legacy/electron/scripts/smoke-windows-trace.mjs",
+      "sha256BeforeRelocation": "1fa4c172313c213e73d0158d2713afc582f3efe4836ad12af46709a839a6231b"
+    },
+    {
+      "original": "scripts/build-startup-trace.mjs",
+      "archived": "legacy/electron/scripts/build-startup-trace.mjs",
+      "sha256BeforeRelocation": "8a58ca5986134eabb4008b75c82f01176b9049ed7e7c52b449bf228c419c4ae4"
+    },
+    {
+      "original": "DESKTOP.md",
+      "archived": "legacy/electron/DESKTOP.md",
+      "sha256BeforeRelocation": "ea48067293b0f158e036c3379b1bc6cf3716cf1fa54b3a6185b602984d4fb4d7"
+    }
+  ],
+  "sharedServiceLocation": "services/",
+  "retainedCompatibilityEntries": {
+    "package.json": "Workspace package; opt-in legacy scripts/dependencies remain until controlled cutover.",
+    "vite.desktop.config.ts": "Shared local React renderer build configuration; no Electron runtime imports.",
+    "tsconfig.desktop.json": "Type-checks shared and explicit legacy adapters; default runtime tests are separate.",
+    ".github/workflows/desktop-windows.yml": "GitHub-recognized manual legacy entrypoint; installer recipe is archived."
+  }
+}

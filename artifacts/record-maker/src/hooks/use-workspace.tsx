@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { bridge } from "@/lib/bridge";
 import { cloudStatus, generateDocuments, type CloudStatus, type GenerationResult } from "@/lib/workflow-api";
 import { workspaceSchema, type Program, type RuntimeInfo, type Subject, type Workspace } from "@/lib/contracts";
-import { programChecks } from "@/lib/program-checks";
 import { mergeGenerationChoice, type GenerationChoice } from "@/lib/generation-choice";
 export type { GenerationChoice } from "@/lib/generation-choice";
 export { programChecks, requiredMappings } from "@/lib/program-checks";
@@ -271,13 +270,7 @@ export const slug = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g,
 export const nextNumber = (s: Subject) => { const used = new Set(activePrograms(s).map(p => p.number)); let n = 1; while (used.has(n)) n++; return n; };
 export const initials = (name: string) => name.split(/\s+/).filter(w => /^[A-Za-z]/.test(w) && !/^(of|and|the|lab)$/i.test(w)).slice(0, 2).map(w => w[0]!.toUpperCase()).join("") || "S";
 
-export function programState(p: Program, s?: Subject): { tone: "good" | "warn" | "alert"; label: string; missing: string[] } {
-  const checks = programChecks(p, s);
-  const missing = checks.filter(c => !c.ok).map(c => c.label.toLowerCase());
-  if (missing.length === 0) return p.outputMayBeStale ? { tone: "warn", label: "Output may be outdated", missing } : { tone: "good", label: "Ready", missing };
-  if (missing.length === checks.length) return { tone: "alert", label: "Just started", missing };
-  return { tone: "warn", label: "Incomplete", missing };
-}
+export { programState } from "@/lib/program-checks";
 export function blankProgram(number: number, title = "", question = ""): Program {
   const t = nowIso();
   return { id: newId(), number, title: title.slice(0, 500), question: question.slice(0, 100000), createdAt: t, updatedAt: t, trashedAt: null, sources: [], outputs: [], outputMayBeStale: false };
