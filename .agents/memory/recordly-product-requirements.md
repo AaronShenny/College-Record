@@ -32,3 +32,9 @@ The product rebrand must not implicitly become a stored-identity migration.
 **Why:** Existing users already have protected Google credentials and account-separated workspaces. A display-name change must not strand those records or create a second empty Drive root.
 
 **How to apply:** Preserve compatibility identifiers and legacy discovery while updating display names and artwork. Changing storage/credential identity needs a separate explicit migration decision.
+
+Use free options only for Recordly's update and Windows signing setup.
+
+**Why:** When asked whether to pursue free or paid signing, the user selected “Free options only”.
+
+**How to apply:** Do not recommend purchasing signing services as the selected implementation path. This cost constraint does not authorize changing the application's licence, publishing private source, or weakening signature verification; obtain the relevant decision separately.
