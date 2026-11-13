@@ -9,6 +9,12 @@ The application name is **Recordly** and the publisher is **extapano**. The user
 
 **How to apply:** Apply branding without abandoning existing users' local caches, Drive roots, credentials or installer migration paths. Do not infer that the college email restriction should change, or modify archived Electron reference material merely to remove historical branding.
 
+Use the approved clean, transparent vector recreation of the logo in the app, rather than the textured image with a beige background.
+
+**Why:** After reviewing the enhanced SVG and transparent PNG, the user explicitly chose “Replace the app logo”.
+
+**How to apply:** Preserve the geometric R and teal/gold/rust gradients. Use the transparent vector for scalable interface artwork and matching transparent raster icons for Windows.
+
 Program editing fields must follow the subject's active template mappings; unused fields such as Question should not remain visible merely because they are built in. Index-page creation should also be dynamic and table-based. Subject configurations must be exportable/shareable and importable before or after subject creation and before or after Word-template upload.
 
 **Why:** The user explicitly requested dynamic placeholders, a dynamic table-format index, and configuration sharing that works across those setup orders.

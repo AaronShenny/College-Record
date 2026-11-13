@@ -24,7 +24,7 @@ const files = [
   "src/lib/subject-configuration.ts", "src/components/subject-config.tsx", "src/components/index-setup.tsx",
   "src/components/close-progress.tsx", "src/components/cloud-panel.tsx", "src/pages/editor.tsx",
   "services/recordly.test.ts", "python/index_table.py", "python/test_recordly_index.py",
-  "public/recordly-logo.png", "public/recordly-icon.ico",
+  "public/recordly-logo.svg", "public/recordly-logo.png", "public/recordly-icon.ico",
 ];
 const sourceHashes = {};
 for (const filename of files) sourceHashes[filename] = createHash("sha256").update(await fs.readFile(path.join(root, filename))).digest("hex");

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640" role="img" aria-labelledby="title desc">
+  <title id="title">Recordly geometric R logo</title>
+  <desc id="desc">Clean vector recreation of the supplied logo, with a rounded teal bowl and folded gold-to-rust geometric forms on a transparent background.</desc>
+  <defs>
+    <linearGradient id="fold" gradientUnits="userSpaceOnUse" x1="40" y1="8" x2="245" y2="342">
+      <stop offset="0" stop-color="#edb14f"/>
+      <stop offset="0.27" stop-color="#f3c673"/>
+      <stop offset="0.65" stop-color="#fbe4b5"/>
+      <stop offset="1" stop-color="#f8d9a0"/>
+    </linearGradient>
+    <radialGradient id="fold-light" gradientUnits="userSpaceOnUse" cx="0" cy="343" r="330" gradientTransform="translate(0 69) scale(1 .8)">
+      <stop offset="0" stop-color="#fff4df" stop-opacity=".95"/>
+      <stop offset=".55" stop-color="#fff1d9" stop-opacity=".6"/>
+      <stop offset="1" stop-color="#fff1d9" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="teal" gradientUnits="userSpaceOnUse" x1="45" y1="5" x2="494" y2="321">
+      <stop offset="0" stop-color="#e7ead7"/>
+      <stop offset=".26" stop-color="#bdcfc0"/>
+      <stop offset=".53" stop-color="#79a79a"/>
+      <stop offset=".78" stop-color="#34796f"/>
+      <stop offset="1" stop-color="#105f57"/>
+    </linearGradient>
+    <linearGradient id="base" gradientUnits="userSpaceOnUse" x1="0" y1="440" x2="520" y2="500">
+      <stop offset="0" stop-color="#eaba67"/>
+      <stop offset=".27" stop-color="#e3a153"/>
+      <stop offset=".58" stop-color="#cb763c"/>
+      <stop offset="1" stop-color="#ae4d2a"/>
+    </linearGradient>
+    <radialGradient id="base-light" gradientUnits="userSpaceOnUse" cx="15" cy="565" r="420">
+      <stop offset="0" stop-color="#ffdf96" stop-opacity=".36"/>
+      <stop offset="1" stop-color="#ffdf96" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g transform="translate(60 33)">
+    <!-- A continuous gold silhouette avoids transparent seams at shared edges. -->
+    <path d="M0 0H346C442.1 0 520 77.9 520 174S442.1 348 346 348H315.2613L520 574H0Z" fill="url(#fold)"/>
+    <path d="M0 0H346C442.1 0 520 77.9 520 174S442.1 348 346 348H315.2613L520 574H0Z" fill="url(#fold-light)"/>
+    <path d="M0 0H346C442.1 0 520 77.9 520 174S442.1 348 346 348H315.2613Z" fill="url(#teal)"/>
+    <path d="M0 348H315.2613L520 574H0Z" fill="url(#base)"/>
+    <path d="M0 348H315.2613L520 574H0Z" fill="url(#base-light)"/>
+  </g>
+</svg>
