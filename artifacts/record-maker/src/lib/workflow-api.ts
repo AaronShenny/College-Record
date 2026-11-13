@@ -101,4 +101,5 @@ export const syncDrive = () => feature<CloudStatus>("sync-drive");
 export const configureGoogle = () => feature<CloudStatus>("configure-google");
 export const logoutCleanup = () => feature<CloudStatus>("logout-cleanup");
 export const checkUpdates = () => feature<{ state: string; message?: string }>("check-updates");
+export const updateStatus = () => feature<{ state: string; message?: string }>("update-status");
 export const restartForUpdate = () => feature("restart-update");

@@ -32,8 +32,12 @@ impl Updates {
             .map_err(|_| "Invalid update endpoint.")?.timeout(Duration::from_secs(30))
             .build().map_err(|_| "Could not initialize signed updates.")?;
         let update = tauri::async_runtime::block_on(updater.check()).map_err(|_| "Could not check for updates. Your current app is unchanged.")?;
-        let Some(update) = update else { return Ok(json!({"state":"current","message":"You have the latest version."})); };
+        let Some(mut update) = update else { return Ok(json!({"state":"current","message":"You have the latest version."})); };
         if update.download_url.scheme() != "https" { return Err("The update download must use HTTPS.".into()); }
+        // The manifest should fail promptly, but the complete app includes
+        // Python/WebView2 and may need longer on a slow student connection.
+        // This remains a bounded background download, not a startup wait.
+        update.timeout = Some(Duration::from_secs(15 * 60));
         let bytes = tauri::async_runtime::block_on(update.download(|_, _| {}, || {}))
             .map_err(|_| "Update download or signature verification failed. The current app is unchanged.")?;
         // The updater verifies its signature; independently verify Authenticode

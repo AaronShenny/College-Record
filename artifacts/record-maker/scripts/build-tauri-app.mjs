@@ -4,9 +4,12 @@ import { promises as fs } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { parseDesktopRegistration } from "../services/google-registration.mjs";
+import { versionOf, releaseConfiguration, repository } from "./release/config.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const assetsOnly = process.argv.includes("--assets-only");
+const prepareSignpath = process.argv.includes("--prepare-signpath");
+const version = versionOf();
 const run = (command, args, cwd = root) => {
   const result = spawnSync(command, args, { cwd, stdio: "inherit", shell: false });
   if (result.error) throw result.error;
@@ -31,22 +34,39 @@ const registration = process.env.GOOGLE_DESKTOP_CLIENT_JSON_PATH
   : process.env.GOOGLE_DESKTOP_CLIENT_JSON;
 if (!registration) throw new Error("Provide the registered Google Desktop client through the build secret. No registration was bundled.");
 await fs.writeFile(path.join(resources, "config/google-client.json"), JSON.stringify(parseDesktopRegistration(registration)));
-const feed = process.env.RECORD_MAKER_TAURI_UPDATE_URL || null;
-const publicKey = process.env.RECORD_MAKER_TAURI_PUBLIC_KEY || null;
-const publisherNames = (process.env.RECORD_MAKER_PUBLISHER_NAME || "").split(";").map(s => s.trim()).filter(Boolean);
-if (feed && (new URL(feed).protocol !== "https:" || !publicKey || !publisherNames.length)) {
-  throw new Error("An update-enabled build needs HTTPS, the Tauri public verification key and publisher names.");
-}
-if (feed && (!process.env.TAURI_SIGNING_PRIVATE_KEY || !process.env.RECORD_MAKER_CERTIFICATE_THUMBPRINT)) {
+const { feed, publicKey, publisherNames } = releaseConfiguration(process.env);
+if (prepareSignpath && !feed) throw new Error("SignPath release preparation requires the update feed and verification policy.");
+if (prepareSignpath) repository(process.env.GITHUB_REPOSITORY);
+if (feed && !prepareSignpath && (!process.env.TAURI_SIGNING_PRIVATE_KEY || !process.env.RECORD_MAKER_CERTIFICATE_THUMBPRINT)) {
   throw new Error("An update-enabled release requires Tauri signing credentials and a Windows certificate already installed for the build user. Trial builds must leave the feed unset.");
 }
 await fs.writeFile(path.join(resources, "config/release-config.json"), JSON.stringify({ feed, publicKey, publisherNames }));
+await fs.mkdir(path.join(resources, "legal"), { recursive: true });
+for (const filename of ["LICENSE", "COPYING", "docs/PRIVACY.md", "docs/THIRD-PARTY-NOTICES.md"]) {
+  await fs.copyFile(path.resolve(root, "../..", filename), path.join(resources, "legal", path.basename(filename)));
+}
+const reviewedLegal = path.join(root, "legal/third-party");
+try {
+  if (prepareSignpath && !(await fs.readdir(reviewedLegal)).length) throw new Error("The reviewed legal bundle is empty.");
+  await fs.cp(reviewedLegal, path.join(resources, "legal/third-party"), { recursive: true });
+} catch (error) {
+  if (prepareSignpath || error.code !== "ENOENT") throw new Error("Add the reviewed third-party licence/source bundle under artifacts/record-maker/legal/third-party before preparing a signed release.");
+}
+if (prepareSignpath) {
+  await fs.writeFile(path.join(resources, "legal/SOURCE.txt"),
+    `Recordly ${version} corresponding application source:\nhttps://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/v${version}/Recordly-${version}-source.tar.gz\n\nSee the included third-party notices/source bundle for dependency source and terms.\n`);
+}
+// Recordly-owned worker metadata must match the native app for signing policy.
+const winVersion = path.join(root, "dist/worker-version.txt");
+const tuple = [...version.split(".").map(Number), 0].join(", ");
+await fs.writeFile(winVersion, `VSVersionInfo(ffi=FixedFileInfo(filevers=(${tuple}), prodvers=(${tuple}), mask=0x3f, flags=0, OS=0x40004, fileType=1, subtype=0, date=(0,0)), kids=[StringFileInfo([StringTable('040904B0', [StringStruct('CompanyName', 'extapano'), StringStruct('ProductName', 'Recordly'), StringStruct('FileDescription', 'Recordly document worker'), StringStruct('FileVersion', '${version}'), StringStruct('ProductVersion', '${version}'), StringStruct('OriginalFilename', 'record-maker-worker.exe')])]), VarFileInfo([VarStruct('Translation', [1033, 1200])])])`);
 run(process.env.RECORD_MAKER_PYTHON || "python", [
   "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir", "--console", "--name", "record-maker-worker",
   "--distpath", "dist/tauri-python", "--workpath", "dist/tauri-pyinstaller", "--specpath", "dist",
   "python/worker.py", "--add-data", `${path.resolve(root, "../../attached_assets/pdf_to_qns_1793905163999.py")};extractor`,
   "--collect-data", "docx", "--collect-data", "docxcompose", "--collect-all", "pymupdf",
   "--hidden-import", "win32com.client", "--hidden-import", "pythoncom", "--hidden-import", "win32timezone",
+  "--version-file", winVersion,
 ]);
 await fs.cp(path.join(root, "dist/tauri-python/record-maker-worker"), path.join(resources, "python"), { recursive: true });
 const health = spawnSync(path.join(resources, "python/record-maker-worker.exe"), ["--workspace-root", path.join(root, "dist/tauri-worker-health")], {
@@ -64,6 +84,17 @@ if (health.error || health.status !== 0 || healthResponse?.protocol !== 1 ||
   throw new Error("The actual packaged Python helper failed its Windows health check.");
 }
 const require = createRequire(import.meta.url);
+if (prepareSignpath) {
+  run(process.execPath, [require.resolve("@tauri-apps/cli/tauri.js"), "build", "--ci",
+    "--features", "desktop,custom-protocol", "--no-bundle", "--", "--locked"], path.join(root, "tauri"));
+  const input = path.join(root, "dist/signpath-binaries-input");
+  await fs.rm(input, { recursive: true, force: true });
+  await fs.mkdir(input, { recursive: true });
+  await fs.copyFile(path.join(root, "tauri/src-tauri/target/release/college-record-maker.exe"), path.join(input, "college-record-maker.exe"));
+  await fs.copyFile(path.join(resources, "python/record-maker-worker.exe"), path.join(input, "record-maker-worker.exe"));
+  console.log("Recordly binaries prepared for SignPath. No release installer or update was published.");
+  process.exit(0);
+}
 const args = [require.resolve("@tauri-apps/cli/tauri.js"), "build", "--ci", "--features", "desktop,custom-protocol", "--bundles", "nsis", "--", "--locked"];
 if (feed) {
   const override = path.join(root, "dist/tauri-release-config.json");
@@ -82,7 +113,7 @@ await fs.cp(path.join(root, "tauri/src-tauri/target/release/bundle/nsis"), outpu
 await fs.copyFile(path.join(root, "tauri/src-tauri/target/release/college-record-maker.exe"), path.join(output, "college-record-maker.exe"));
 await fs.copyFile(path.join(root, "tauri/WINDOWS-VERIFICATION.md"), path.join(output, "WINDOWS-VERIFICATION.md"));
 await fs.writeFile(path.join(output, "build-status.json"), JSON.stringify({
-  version: "0.3.0", host: "tauri", ownerCutoverApproved: false, targetHardwarePerformanceVerified: false,
+  version, host: "tauri", ownerCutoverApproved: false, targetHardwarePerformanceVerified: false,
   officeVerified: false, updateFeedConfigured: !!feed, pythonPackaging: "directory",
 }, null, 2));
 console.log("Tauri trial installer created. Complete Windows verification before replacing Electron.");

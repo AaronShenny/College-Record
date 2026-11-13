@@ -42,3 +42,17 @@ mtime_ms = 1794568453445
 storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:15e2feef-c4ab-4fff-9e88-797b3b972149/f79315a7-f0a4-4078-afeb-1864b988db39/bfa8bc36-437d-4041-a2a7-48e1d3769488"
 storage_version_token = "1794568485097748"
 content_type = "image/png"
+
+[[outputs]]
+id = "xAHgWZMntr8TD-xyIEHaw"
+uri = "file://docs/FREE-RELEASES.md"
+type = "text"
+title = "Recordly free release guide"
+description = "SignPath setup, licensing prerequisites and the draft-only Windows release process."
+logical_id = "4ac77949-5ed9-41d5-990f-b3e5557e55ba"
+content_hash = "sha256:c77ac5efbf47745f80a8517fed2daa967e5799d66075a73911d5847e86661697"
+size = 5703
+mtime_ms = 1794570836161
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:15e2feef-c4ab-4fff-9e88-797b3b972149/4ac77949-5ed9-41d5-990f-b3e5557e55ba/f41841c3-4f3c-442d-bd1e-d7f358d0e950"
+storage_version_token = "1794571023599373"
+content_type = "text/markdown"

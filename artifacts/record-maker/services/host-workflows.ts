@@ -23,6 +23,7 @@ export class HostWorkflows {
   private backgroundStarted = false;
   private syncTimer?: NodeJS.Timeout;
   private updateTimer?: NodeJS.Timeout;
+  private updateInterval?: NodeJS.Timeout;
   readonly updates: NativePlatform["updates"];
   constructor(private directory: string, private host: NativePlatform, diagnostics?: PerformanceLog) {
     this.diagnostics = diagnostics || new PerformanceLog(directory, host.version);
@@ -95,15 +96,17 @@ export class HostWorkflows {
     this.syncTimer = setInterval(() => {
       if (this.account.identity && !this.sync.busy && !this.changing && !this.documents.busy) void this.sync.sync().catch(() => undefined);
     }, 180_000).unref();
-    this.updateTimer = setTimeout(() => {
+    const check = () => {
       const started = performance.now();
       void this.updates.initialize()
         .then(() => this.diagnostics.record("updates-initialized", { durationMs: Math.round(performance.now() - started) }))
         .catch(() => this.diagnostics.record("updates-initialization-failed"));
-    }, 10_000).unref();
+    };
+    this.updateTimer = setTimeout(check, 60_000).unref();
+    this.updateInterval = setInterval(check, 6 * 60 * 60_000).unref();
   }
   async close() {
-    clearInterval(this.syncTimer); clearTimeout(this.updateTimer);
+    clearInterval(this.syncTimer); clearTimeout(this.updateTimer); clearInterval(this.updateInterval);
     await this.background?.close();
     await this.diagnostics.flush();
   }
@@ -144,8 +147,8 @@ export class HostWorkflows {
   }
   async run(action: string, input: Record<string, unknown>) {
     if (!input || typeof input !== "object") throw new Error("Invalid workflow request.");
-    if (!["cloud-status", "export-diagnostics", "check-updates"].includes(action)) await this.host.assertExclusive?.();
-    if (!this.canWork && !["cloud-status", "configure-google", "connect-drive", "check-updates", "restart-update", "export-diagnostics"].includes(action)) {
+    if (!["cloud-status", "export-diagnostics", "check-updates", "update-status"].includes(action)) await this.host.assertExclusive?.();
+    if (!this.canWork && !["cloud-status", "configure-google", "connect-drive", "check-updates", "update-status", "restart-update", "export-diagnostics"].includes(action)) {
       throw new Error("Sign in with your college Google account before accessing record data.");
     }
     if (["inspect-template", "import-questions", "generate", "export-pdf"].includes(action)) {
@@ -262,6 +265,7 @@ export class HostWorkflows {
       return this.background.request("drive-sources", { id });
     }
     if (action === "check-updates") return this.updates.check();
+    if (action === "update-status") return this.updates.status();
     if (action === "restart-update") {
       if (this.changing || this.documents.busy) throw new Error("Finish document processing and account changes before restarting.");
       if (this.updates.status().state !== "downloaded") throw new Error("No verified downloaded update is ready.");

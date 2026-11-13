@@ -20,7 +20,7 @@ if (!hostNonce || !/^[a-f0-9]{64}$/.test(hostNonce)) throw new Error("The servic
 delete process.env.RECORD_MAKER_HOST_NONCE;
 let workflows: HostWorkflows;
 let stopped = false;
-let updateState = { state: "idle" };
+let updateState: { state: string; message?: string } = { state: "idle" };
 const finish = () => {
   if (stopped) return;
   stopped = true; peer.close();
@@ -78,8 +78,18 @@ const platform: NativePlatform = {
   saveDialog: options => peer.native("save-dialog", options),
   messageDialog: options => peer.native("message-dialog", options),
   updates: {
-    initialize: async () => { updateState = await peer.native("updates-initialize", {}); },
-    check: async () => { updateState = await peer.native("updates-check", {}); return updateState; },
+    initialize: async () => {
+      if (updateState.state === "checking" || updateState.state === "downloaded") return;
+      updateState = { state: "checking", message: "Checking for updates in the background." };
+      try { updateState = await peer.native("updates-initialize", {}); }
+      catch (error) { updateState = { state: "error", message: "Update check failed. Your current app is unchanged." }; throw error; }
+    },
+    check: async () => {
+      if (updateState.state === "checking") return updateState;
+      updateState = { state: "checking", message: "Checking for updates in the background." };
+      try { updateState = await peer.native("updates-check", {}); return updateState; }
+      catch (error) { updateState = { state: "error", message: "Update check failed. Your current app is unchanged." }; throw error; }
+    },
     status: () => updateState,
     restart: () => peer.native("updates-restart", {}),
   },

@@ -3,6 +3,7 @@
   "version": "0.3.0",
   "description": "Recordly — independent Windows college record preparation",
   "author": "extapano",
+  "license": "AGPL-3.0-or-later",
   "main": "dist/desktop/main.cjs",
   "private": true,
   "type": "module",
@@ -22,7 +23,8 @@
     "tauri:service:build": "node scripts/build-tauri-service.mjs",
     "tauri:build": "node scripts/build-tauri-app.mjs --assets-only",
     "tauri:package": "node scripts/build-tauri-app.mjs",
-    "test:native-service": "tsx --test tauri/*.test.ts"
+    "test:native-service": "tsx --test tauri/*.test.ts",
+    "test:release": "node --test scripts/release/*.test.mjs"
   },
   "devDependencies": {
     "@fontsource/dm-mono": "^5.3.0",

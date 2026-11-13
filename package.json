@@ -1,7 +1,7 @@
 {
   "name": "workspace",
   "version": "0.0.0",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "preinstall": "node scripts/require-pnpm.mjs",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",

@@ -1,0 +1,157 @@
+name: Recordly signed release draft
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Existing protected release tag version, without v'
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: recordly-release-${{ inputs.version }}
+  cancel-in-progress: false
+jobs:
+  signed-build:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    environment: recordly-release
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+      SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+      SIGNPATH_BINARIES_CONFIGURATION: ${{ vars.SIGNPATH_BINARIES_CONFIGURATION }}
+      SIGNPATH_INSTALLER_CONFIGURATION: ${{ vars.SIGNPATH_INSTALLER_CONFIGURATION }}
+      RECORD_MAKER_TAURI_PUBLIC_KEY: ${{ vars.RECORD_MAKER_TAURI_PUBLIC_KEY }}
+      RECORD_MAKER_PUBLISHER_NAME: ${{ vars.RECORD_MAKER_PUBLISHER_NAME }}
+      RECORDLY_LICENSE_REVIEWED: ${{ vars.RECORDLY_LICENSE_REVIEWED }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ inputs.version }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate release prerequisites without printing secrets
+        shell: pwsh
+        env:
+          HAS_GOOGLE_REGISTRATION: ${{ secrets.GOOGLE_DESKTOP_CLIENT_JSON != '' }}
+          HAS_SIGNPATH_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
+          HAS_TAURI_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          node artifacts/record-maker/scripts/release/preflight.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node artifacts/record-maker/scripts/release/check-source.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --frozen-lockfile
+      - run: python -m pip install -r artifacts/record-maker/python/build-requirements.txt
+      - name: Verify source, service contracts and document engine
+        shell: pwsh
+        run: |
+          foreach ($task in @('test:release', 'typecheck', 'test:desktop', 'test:native-service')) {
+            pnpm --filter @workspace/record-maker run $task
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          python -m unittest discover -s artifacts/record-maker/python -p test_engine.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:RECORD_MAKER_TEST_NODE = (Get-Command node).Source
+          cargo test --locked --manifest-path artifacts/record-maker/tauri/src-tauri/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile Recordly-owned binaries
+        shell: pwsh
+        env:
+          GOOGLE_DESKTOP_CLIENT_JSON: ${{ secrets.GOOGLE_DESKTOP_CLIENT_JSON }}
+        run: |
+          $env:RECORD_MAKER_TAURI_UPDATE_URL = "https://github.com/$env:GITHUB_REPOSITORY/releases/latest/download/latest.json"
+          node artifacts/record-maker/scripts/build-tauri-app.mjs --prepare-signpath
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload unsigned binaries with GitHub provenance
+        id: binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: Recordly-unsigned-binaries
+          path: artifacts/record-maker/dist/signpath-binaries-input/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Request approved binary signing
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_BINARIES_CONFIGURATION }}
+          github-artifact-id: ${{ steps.binaries.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 2400
+          output-artifact-directory: artifacts/record-maker/dist/signpath-binaries-signed
+      - name: Verify binaries and bundle without invalidating signatures
+        run: node artifacts/record-maker/scripts/release/finish.mjs bundle
+      - name: Upload unsigned installer with GitHub provenance
+        id: installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Recordly-unsigned-installer
+          path: artifacts/record-maker/dist/signpath-installer-input/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Request approved installer signing
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_INSTALLER_CONFIGURATION }}
+          github-artifact-id: ${{ steps.installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 2400
+          output-artifact-directory: artifacts/record-maker/dist/signpath-installer-signed
+      - name: Verify installer and create version-bound Tauri update signature
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: node artifacts/record-maker/scripts/release/finish.mjs finalize
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Recordly-verified-release
+          path: generated-artifacts/recordly-release/
+          if-no-files-found: error
+          retention-days: 14
+  draft:
+    needs: signed-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Recordly-verified-release
+          path: release
+      - name: Prepare a draft only; never overwrite or publish a release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          if gh release view "v$VERSION" --repo "$REPO" >/dev/null 2>&1; then
+            echo "A release already exists; refusing to overwrite it."
+            exit 1
+          fi
+          gh release create "v$VERSION" release/* --repo "$REPO" --verify-tag --draft \
+            --title "Recordly $VERSION" \
+            --notes "Draft for Windows upgrade, licensing and Drive recovery verification. Do not publish before completing docs/FREE-RELEASES.md. Code signing policy: https://github.com/$REPO/blob/v$VERSION/README.md#code-signing-policy"

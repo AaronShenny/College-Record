@@ -1,8 +1,32 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { runSelectorIntent } from "./focus-intent";
 import { AlertTriangle, BookOpen, FileText, Save, Settings, Trash2, X } from "lucide-react";
 import { cloudLabel, useStore } from "@/hooks/use-workspace";
 import { fmtTime, href, BrandMark } from "./kit";
+import { updateStatus } from "@/lib/workflow-api";
+
+let updateDismissedForSession = false;
+function UpdateNotice({ desktop }: { desktop: boolean }) {
+  const [ready, setReady] = useState(false);
+  const [later, setLater] = useState(updateDismissedForSession);
+  useEffect(() => {
+    if (!desktop) return;
+    let cancelled = false;
+    const check = async () => {
+      if (document.visibilityState !== "visible") return;
+      try { const status = await updateStatus(); if (!cancelled) setReady(status.state === "downloaded"); }
+      catch { /* Background update status must not block the app. */ }
+    };
+    const timer = window.setInterval(() => { void check(); }, 30_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [desktop]);
+  if (!ready || later) return null;
+  return <div className="preview-banner" role="status" data-testid="banner-update-ready">
+    <span style={{ flex: 1 }}>A verified Recordly update is ready. Keep working or open Settings to restart safely.</span>
+    <a className="btn small" href={href("/settings")}>Review update</a>
+    <button className="btn small" onClick={() => { updateDismissedForSession = true; setLater(true); }}>Later</button>
+  </div>;
+}
 
 const NAV = [
   { key: "subjects", label: "Subjects", path: "/", icon: BookOpen },
@@ -78,6 +102,7 @@ export function Shell({ active, crumb, children }: { active: string; crumb: Reac
               <span><b>Browser preview.</b> Work is stored in this browser only; Word PDF export and Google sign-in need the desktop app. <a className="inline-link" href={href("/settings")}>Details in Settings</a></span>
             </div>
           )}
+          <UpdateNotice desktop={!!runtime && runtime.mode !== "browser-preview"} />
           {(save.kind === "error" || save.kind === "invalid") && (
             <div className="preview-banner bad" role="alert" data-testid="banner-save-error">
               <AlertTriangle size={14} aria-hidden="true" />

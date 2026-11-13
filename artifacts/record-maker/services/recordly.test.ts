@@ -99,12 +99,29 @@ test("close preparation requires final clean Drive acknowledgment and never shut
 });
 
 test("native sync timer runs every three minutes and stays independent of renderer visibility", () => {
-  let interval = 0;
-  const timer = mock.method(globalThis, "setInterval", ((_fn: unknown, ms: number) => { interval = ms; return { unref() { return this; } }; }) as any);
-  const timeout = mock.method(globalThis, "setTimeout", (() => ({ unref() { return this; } })) as any);
+  const intervals: number[] = [];
+  let delay = 0;
+  const timer = mock.method(globalThis, "setInterval", ((_fn: unknown, ms: number) => { intervals.push(ms); return { unref() { return this; } }; }) as any);
+  const timeout = mock.method(globalThis, "setTimeout", ((_fn: unknown, ms: number) => { delay = ms; return { unref() { return this; } }; }) as any);
   try {
     const fake: any = { backgroundStarted: false, account: {}, updates: {}, sync: {}, documents: {} };
     HostWorkflows.prototype.startBackground.call(fake);
-    assert.equal(interval, 180_000);
+    assert.deepEqual(intervals, [180_000, 6 * 60 * 60_000]);
+    assert.equal(delay, 60_000, "updates stay out of the first-screen startup path");
+    HostWorkflows.prototype.startBackground.call(fake);
+    assert.equal(intervals.length, 2, "background tasks are not installed twice");
   } finally { timer.mock.restore(); timeout.mock.restore(); }
+});
+
+test("reading update status does not start a download or require an unlocked workspace", async () => {
+  let checked = 0;
+  const fake: any = {
+    canWork: false, host: {}, updates: {
+      status: () => ({ state: "downloaded", message: "Verified update ready" }),
+      check: () => { checked++; },
+    },
+  };
+  const result = await HostWorkflows.prototype.run.call(fake, "update-status", {});
+  assert.equal(result.state, "downloaded");
+  assert.equal(checked, 0);
 });

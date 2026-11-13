@@ -1,0 +1,11 @@
+# Source distributions must not include internal project context or user uploads.
+# These attributes affect archives, NOT repository visibility or existing history.
+.agents export-ignore
+.local export-ignore
+.replit export-ignore
+.replitignore export-ignore
+replit.md export-ignore
+generated-artifacts export-ignore
+attached_assets/* export-ignore
+# This one uploaded file is required application source, not a student record.
+attached_assets/pdf_to_qns_1793905163999.py -export-ignore

@@ -38,3 +38,9 @@ Use free options only for Recordly's update and Windows signing setup.
 **Why:** When asked whether to pursue free or paid signing, the user selected “Free options only”.
 
 **How to apply:** Do not recommend purchasing signing services as the selected implementation path. This cost constraint does not authorize changing the application's licence, publishing private source, or weakening signature verification; obtain the relevant decision separately.
+
+The user approved making Recordly open-source to pursue free open-source Windows signing.
+
+**Why:** After reviewing the source-sharing implications and SignPath conditions, the user selected “Yes, make it open-source”.
+
+**How to apply:** Prepare public application source and signing-policy documentation, but protect credentials, student material and private history. Do not equate open-source consent with SignPath acceptance or approval to publish a production release. Retain the working PyMuPDF engine using AGPL compliance rather than silently replacing it to claim permissive-only licensing.

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, GitCompare, FileKey, LogIn, LogOut, RefreshCw, RotateCcw } from "lucide-react";
 import { Modal, fmtTime } from "./kit";
-import { checkUpdates, configureGoogle, connectDrive, logoutCleanup, restartForUpdate, syncDrive, type ConflictReview } from "@/lib/workflow-api";
+import { checkUpdates, updateStatus, configureGoogle, connectDrive, logoutCleanup, restartForUpdate, syncDrive, type ConflictReview } from "@/lib/workflow-api";
 import { cloudLabel, errMsg, useStore } from "@/hooks/use-workspace";
 
 export function CloudPanel() {
@@ -112,13 +112,18 @@ export function UpdatesPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const readyToRestart = !!st && /ready|downloaded/i.test(st.state);
-  const active = !!st && /check|download|available|progress/i.test(st.state) && !readyToRestart;
   const check = async (quiet = false) => { if (!quiet) setBusy("check"); setErr(null); try { setSt(await checkUpdates()); } catch (e) { setErr(errMsg(e)); } finally { if (!quiet) setBusy(null); } };
   useEffect(() => {
-    if (!active) return;
-    const t = window.setInterval(() => { if (document.visibilityState === "visible") void check(true); }, 4000);
-    return () => window.clearInterval(t);
-  }, [active]);
+    if (!runtime || runtime.mode === "browser-preview") return;
+    let cancelled = false;
+    const read = async () => {
+      try { const status = await updateStatus(); if (!cancelled) setSt(status); }
+      catch { /* A status failure must not interrupt record editing. */ }
+    };
+    void read();
+    const t = window.setInterval(() => { if (document.visibilityState === "visible") void read(); }, 4000);
+    return () => { cancelled = true; window.clearInterval(t); };
+  }, [runtime?.mode]);
   const restart = async () => { setBusy("restart"); setErr(null); try { await restartForUpdate(); } catch (e) { setErr(errMsg(e)); } finally { setBusy(null); } };
   return (
     <section className="panel settings-updates">
