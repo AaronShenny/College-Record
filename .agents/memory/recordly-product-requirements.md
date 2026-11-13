@@ -13,4 +13,10 @@ Program editing fields must follow the subject's active template mappings; unuse
 
 **Why:** The user explicitly requested dynamic placeholders, a dynamic table-format index, and configuration sharing that works across those setup orders.
 
-**How to apply:** Preserve hidden existing content. Resolve template/mapping compatibility explicitly on import, without silently discarding existing work. Exact index columns and the inclusion of template bytes in shared configuration still need clarification.
+**How to apply:** Preserve hidden existing content. Resolve template/mapping compatibility explicitly on import, without silently discarding existing work.
+
+Students decide the index table's columns. Configuration export must let them choose whether to include the Word template.
+
+**Why:** The user answered “let the students decide” and selected “Choose when exporting”.
+
+**How to apply:** Do not hardcode a single mandatory index layout or always include/exclude template bytes. Persist reusable index choices with the subject setup.
