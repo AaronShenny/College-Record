@@ -16,7 +16,7 @@ const [root, command, ...args] = process.argv.slice(2);
 if (!root || !path.isAbsolute(root) || !command) throw new Error("Invalid background service startup");
 const store = new WorkspaceStore(root);
 const worker = new PythonWorker(command, args, details => send({ type: "diagnostic", event: "python-job", ...details }));
-const documents = new DocumentService(root, worker);
+const documents = new DocumentService(root, worker, store);
 let closing = false;
 const tokens = new Map<string, { resolve(token: string): void; reject(error: Error): void }>();
 const account = {
@@ -37,6 +37,7 @@ async function dispatch(action: string, payload: Record<string, any>) {
     case "store-pointer": return store.pointer();
     case "store-load": return store.loadWithRevision();
     case "store-save": return store.save(payload.workspace, payload.expectedRevision);
+    case "store-save-generation": return documents.prepareGeneration(payload.workspace, payload.expectedRevision);
     case "sync-status": return sync.status();
     case "sync-run": return sync.sync();
     case "sync-pause": return sync.pause();

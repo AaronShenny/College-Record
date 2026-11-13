@@ -4,6 +4,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { desktopRegistration } from "./google-registration.mjs";
+import { writeAtomicJson } from "./local-transaction";
 
 type Identity = { sub: string; email: string; name: string };
 type Vault = { available(): boolean | Promise<boolean>; encrypt(value: string): Buffer | Promise<Buffer>; decrypt(value: Buffer): string | Promise<string> };
@@ -38,18 +39,34 @@ export class GoogleAccount {
   }
   private async read(name: string) {
     try {
-      const bytes = await fs.readFile(path.join(this.directory, name));
+      const filename = path.join(this.directory, name);
+      if ((await fs.stat(filename)).size > 128 * 1024) throw new CredentialUnlockError();
+      const bytes = await fs.readFile(filename);
+      if (bytes.length > 128 * 1024) throw new CredentialUnlockError();
       if (!await this.vault.available()) throw new Error("Windows credential encryption is unavailable");
-      return JSON.parse(await this.vault.decrypt(bytes));
+      const plain = await this.vault.decrypt(bytes);
+      if (Buffer.byteLength(plain) > 128 * 1024) throw new CredentialUnlockError();
+      const parsed = JSON.parse(plain);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new CredentialUnlockError();
+      return parsed;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
       throw new CredentialUnlockError();
     }
   }
   async initialize() {
-    this.config = await this.read("google-client.bin") || undefined;
-    if (!this.config) return;
+    const config = await this.read("google-client.bin");
     const stored = await this.read("google-session.bin");
+    if (config !== null && (!config || typeof config.client_id !== "string" || !config.client_id.endsWith(".apps.googleusercontent.com") ||
+        typeof config.client_secret !== "string" || !config.client_secret)) throw new CredentialUnlockError();
+    if (stored !== null && (!config || !stored || typeof stored.identity?.sub !== "string" || !stored.identity.sub.trim() ||
+        stored.identity.sub !== stored.identity.sub.trim() ||
+        typeof stored.identity.email !== "string" || !/^[^@\s]+@rajagiri\.edu$/i.test(stored.identity.email) ||
+        typeof stored.identity.name !== "string" || !stored.identity.name.trim() ||
+        !stored.tokens || typeof stored.tokens !== "object" || Array.isArray(stored.tokens) ||
+        typeof stored.tokens.refresh_token !== "string" || !stored.tokens.refresh_token.trim())) throw new CredentialUnlockError();
+    this.config = config || undefined;
+    if (!this.config) return;
     if (stored) {
       this.client = new OAuth2Client({ clientId: this.config.client_id, clientSecret: this.config.client_secret, transporterOptions: { timeout: 30_000 } });
       this.client.setCredentials(stored.tokens as Credentials);
@@ -59,12 +76,32 @@ export class GoogleAccount {
   }
   /** Called only after explicit recovery confirmation. Never touches workspaces. */
   async recoverLockedCredentials() {
+    await this.sessionWrites;
+    const accounts = await fs.readdir(path.join(path.dirname(this.directory), "workspaces"), { withFileTypes: true })
+      .catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return []; throw error; });
+    const keys = accounts.filter(entry => entry.isDirectory() && /^account-[a-f0-9]{32}$/.test(entry.name)).map(entry => entry.name.slice(8));
+    if (keys.length) await writeAtomicJson(`${this.directory}.recovery-accounts.json`, { version: 1, keys });
     const backup = `${this.directory}.recovery-${randomBytes(12).toString("hex")}`;
     // Rename before changing memory: if preservation fails, recovery fails closed.
     await fs.rename(this.directory, backup);
     this.client = undefined;
     this.identity = undefined;
     this.config = undefined;
+    this.savedSessionHash = undefined;
+  }
+  private async assertRecoveryIdentity(identity: Identity) {
+    const filename = `${this.directory}.recovery-accounts.json`;
+    let constraint: any;
+    try {
+      if ((await fs.stat(filename)).size > 64_000) throw new Error("Recovery account metadata is invalid. Existing records were preserved.");
+      constraint = JSON.parse(await fs.readFile(filename, "utf8"));
+    } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+    if (!constraint || constraint.version !== 1 || !Array.isArray(constraint.keys) ||
+        constraint.keys.some((value: unknown) => typeof value !== "string" || !/^[a-f0-9]{32}$/.test(value))) {
+      throw new Error("Recovery account metadata is invalid. Existing records were preserved.");
+    }
+    const key = createHash("sha256").update(identity.sub).digest("hex").slice(0, 32);
+    if (!constraint.keys.includes(key)) throw new Error("Recover sign-in with the SAME college account that owns the preserved cached records. No other account was opened.");
   }
   async configure(json: unknown) {
     const config = desktopRegistration(json);
@@ -120,9 +157,11 @@ export class GoogleAccount {
       const claims = ticket.getPayload();
       if ((claims as any)?.nonce !== nonce) throw new Error("Google identity nonce did not match.");
       const identity = collegeIdentity(claims);
+      await this.assertRecoveryIdentity(identity);
       if (this.identity && this.identity.sub !== identity.sub) throw new Error("Reconnect the same college account. Use sync-and-logout before switching students.");
       client.setCredentials(tokens);
       await this.save("google-session.bin", { tokens, identity });
+      await fs.rm(`${this.directory}.recovery-accounts.json`, { force: true });
       this.client = client;
       this.identity = identity;
     } finally { clearTimeout(timeout); server.closeAllConnections(); server.close(); }

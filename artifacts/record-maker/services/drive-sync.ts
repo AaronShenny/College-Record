@@ -6,6 +6,8 @@ import { GoogleAccount } from "./google-auth";
 import { WorkspaceStore, resolveInside } from "./store";
 import { atomicJson, readJson } from "./processing";
 import type { CloudStatus } from "../src/lib/workflow-api";
+import { localTransaction, activateIncoming } from "./local-transaction";
+import { validateIncomingInventory } from "./download-inventory";
 
 type RemoteFile = { id: string; name: string; mimeType: string; parents?: string[]; appProperties?: Record<string, string> };
 type SyncState = { localRevision: string; remoteRevision: string; extraSignature: string; lastSyncAt: string };
@@ -141,7 +143,8 @@ async function extras(root: string) {
     for (const name of names.sort()) {
       if (path.basename(name).startsWith("~$") || name.endsWith(".tmp")) continue;
       const filename = path.join(base, name);
-      const stat = await fs.stat(filename);
+      const stat = await fs.lstat(filename);
+      if (stat.isSymbolicLink()) throw new Error("The local inventory contains a linked file. Originals were preserved.");
       if (stat.isFile()) result.push({ relative: `${dir}/${name.split(path.sep).join("/")}`, filename, signature: `${dir}/${name}:${stat.size}:${stat.mtimeMs}` });
     }
   }
@@ -176,6 +179,7 @@ export class DriveSync {
   }
   private async state(): Promise<SyncState | null> { return readJson(path.join(this.store().root, "sync-state.json"), null); }
   async status(): Promise<CloudStatus> {
+    return localTransaction(this.store().root, async () => {
     const state = await this.state();
     const pointer = await this.store().pointer();
     const signature = await this.extrasSignature();
@@ -184,6 +188,7 @@ export class DriveSync {
       busy: this.busy, state: this.busy ? "syncing" : this.lastFailure ? "error" : state ? "synced" : "local",
       pending: !!pointer && pointer.revisionId !== state?.localRevision || signature !== (state?.extraSignature || hash("")),
       lastSyncAt: state?.lastSyncAt, message: this.message, revision: pointer?.revisionId, syncedRevision: state?.localRevision };
+    });
   }
   async pause() { this.controller?.abort(); await this.finished; }
   async sync(): Promise<CloudStatus> {
@@ -221,7 +226,24 @@ export class DriveSync {
         localDirty = !extrasMatch;
       }
       if (remote?.revision && remote.revision !== previous?.remoteRevision) {
-        if (localDirty) throw new Error("Drive changed while this computer had pending edits. V1 supports one active computer; your local edits were preserved. Resolve this before syncing—no version was silently overwritten.");
+        // Old releases could leave remote extras in live storage on a failed
+        // download. It is safe to retry only when *every* current extra already
+        // has exactly the incoming content-addressed identity, and the editable
+        // revision is still acknowledged. Never infer this from filenames alone.
+        if (localDirty && (!pointer || pointer.revisionId === previous?.localRevision) && Array.isArray(remote.extras)) {
+          const verifiedPartial = await localTransaction(this.store().root, async () => {
+            if (((await this.store().pointer())?.revisionId ?? null) !== (pointer?.revisionId ?? null)) return false;
+            const current = await extras(this.store().root);
+            if (hash(current.map(e => e.signature).join("\n")) !== signature) return false;
+            for (const item of current) {
+              const ref = remote.extras.find((e: any) => e.path === item.relative)?.ref;
+              if (ref !== versionedPath(item.relative, await fs.readFile(item.filename))) return false;
+            }
+            return true;
+          });
+          if (verifiedPartial) localDirty = false;
+        }
+        if (localDirty) throw new Error("Drive changed while this computer had pending edits or uncertain files from an older failed download. V1 supports one active computer. Local files and Drive originals were preserved; nothing uncertain was discarded or silently overwritten. Resolve this before syncing.");
         await this.download(api, records, root, remote, pointer?.revisionId || null, signature);
       } else if (!pointer && !remote) {
         const receipt = await this.store().save({ schemaVersion: 1, subjects: [] });
@@ -240,11 +262,14 @@ export class DriveSync {
   private async upload(api: DriveFiles, lookup: Map<string, RemoteFile>, root: string, _revision: string, expectedRemote: string | null) {
     await this.store().withSnapshot(async snapshot => {
       const revision = path.basename(snapshot);
-      const bundle = await buildRemoteSnapshot(snapshot);
-      const extraFiles = await extras(this.store().root);
-      const signature = hash(extraFiles.map(e => e.signature).join("\n"));
-      bundle.app.extras = [];
-      for (const item of extraFiles) bundle.app.extras.push({ path: item.relative, ref: bundle.immutable(item.relative, await fs.readFile(item.filename)) });
+      const { bundle, signature } = await localTransaction(this.store().root, async () => {
+        const bundle = await buildRemoteSnapshot(snapshot);
+        const extraFiles = await extras(this.store().root);
+        const signature = hash(extraFiles.map(e => e.signature).join("\n"));
+        bundle.app.extras = [];
+        for (const item of extraFiles) bundle.app.extras.push({ path: item.relative, ref: bundle.immutable(item.relative, await fs.readFile(item.filename)) });
+        return { bundle, signature };
+      });
       const remoteRevision = randomUUID();
       bundle.app.revision = remoteRevision;
       bundle.app.localSnapshot = revision;
@@ -291,6 +316,8 @@ export class DriveSync {
       if (!record) throw new Error("Drive workspace has a missing referenced file. The local workspace was not replaced.");
       const bytes = await api.bytes(record.id); total += bytes.length;
       if (total > 512 * 1024 * 1024) throw new Error("Drive download exceeds this release's 512 MB workspace limit.");
+      const digest = /\.([a-f0-9]{24})(?:\.[^/.]+)?$/.exec(relative)?.[1];
+      if (digest && hash(bytes).slice(0, 24) !== digest) throw new Error("Drive file content does not match its immutable reference. Cached data was preserved.");
       const filename = resolveInside(snapshot, target);
       await fs.mkdir(path.dirname(filename), { recursive: true }); await fs.writeFile(filename, bytes, { flag: "wx" });
       return bytes;
@@ -317,22 +344,45 @@ export class DriveSync {
       await atomicJson(path.join(snapshot, "app.json"), manifest);
       await atomicJson(path.join(stage, "current.json"), { revisionId: revision, savedAt: new Date().toISOString(), pendingItems: 0 });
       const workspace = await new WorkspaceStore(stage).load(); // Validate before replacement.
-      if (((await this.store().pointer())?.revisionId || null) !== expectedLocal ||
-          hash((await extras(this.store().root)).map(e => e.signature).join("\n")) !== expectedExtras) {
-        throw new Error("Local changes arrived during the Drive download. Cached edits were preserved; retry after saving.");
-      }
       for (const extra of manifest.extras || []) {
-        if (!/^(generated|imports)\//.test(extra.path) || downloaded.has(extra.path)) throw new Error("Drive has an invalid extra-file reference.");
+        if (typeof extra.path !== "string" || !/^(generated|imports)\//.test(extra.path) ||
+            extra.path.includes("\\") || extra.path.includes(":") || path.posix.normalize(extra.path) !== extra.path ||
+            extra.path.split("/").includes("..") || downloaded.has(extra.path)) throw new Error("Drive has an invalid extra-file reference.");
         downloaded.add(extra.path);
         const bytes = await download(extra.ref, `extras/${extra.path}`);
-        const filename = resolveInside(this.store().root, extra.path);
-        await fs.mkdir(path.dirname(filename), { recursive: true }); await fs.writeFile(filename, bytes);
+        if (extra.ref !== versionedPath(extra.path, bytes)) throw new Error("Drive has an invalid immutable extra-file identity. Cached data was preserved.");
       }
-      const pointer = await this.store().pointer();
-      const sameWorkspace = pointer && JSON.stringify(await this.store().load()) === JSON.stringify(workspace);
-      const receipt = sameWorkspace ? pointer : await this.store().save(workspace, pointer?.revisionId ?? null);
-      const signature = hash((await extras(this.store().root)).map(e => e.signature).join("\n"));
-      await atomicJson(path.join(this.store().root, "sync-state.json"), { localRevision: receipt.revisionId, remoteRevision: manifest.revision, extraSignature: signature, lastSyncAt: new Date().toISOString() });
+      const store = this.store();
+      await localTransaction(store.root, async () => {
+        const unchanged = async () => {
+          this.controller?.signal.throwIfAborted();
+          if (((await store.pointer())?.revisionId ?? null) !== expectedLocal ||
+              hash((await extras(store.root)).map(e => e.signature).join("\n")) !== expectedExtras) {
+            throw new Error("Local changes arrived during the Drive download. Cached edits were preserved; retry after saving.");
+          }
+        };
+        await unchanged();
+        const incoming = path.join(stage, "incoming");
+        for (const dir of ["generated", "imports"]) {
+          const source = path.join(store.root, dir), target = path.join(incoming, dir);
+          try { await fs.cp(source, target, { recursive: true, preserveTimestamps: true, errorOnExist: true, force: false }); }
+          catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; await fs.mkdir(target, { recursive: true }); }
+        }
+        for (const extra of manifest.extras || []) {
+          const target = resolveInside(incoming, extra.path);
+          await fs.mkdir(path.dirname(target), { recursive: true });
+          await fs.copyFile(resolveInside(snapshot, `extras/${extra.path}`), target);
+        }
+        await unchanged();
+        await validateIncomingInventory(incoming);
+        const pointer = await store.pointer();
+        const sameWorkspace = pointer && JSON.stringify(await store.load()) === JSON.stringify(workspace);
+        const receipt = sameWorkspace ? pointer : await store.prepareIncoming(workspace);
+        const signature = hash((await extras(incoming)).map(e => e.signature).join("\n"));
+        await unchanged();
+        await activateIncoming(store.root, incoming, receipt, { localRevision: receipt.revisionId,
+          remoteRevision: manifest.revision, extraSignature: signature, lastSyncAt: new Date().toISOString() }, this.controller?.signal);
+      });
     } finally { await fs.rm(stage, { recursive: true, force: true }); }
   }
 }

@@ -3,7 +3,41 @@ import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { createHash } from "node:crypto";
 import { CredentialUnlockError, GoogleAccount } from "./google-auth";
+
+test("confirmed credential recovery refuses a different college account when cached ownership is known", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "recovery-account-"));
+  try {
+    const sub = "original-fixture", key = createHash("sha256").update(sub).digest("hex").slice(0, 32);
+    await fs.mkdir(path.join(root, "workspaces", `account-${key}`), { recursive: true });
+    await fs.mkdir(path.join(root, "credentials"));
+    await fs.writeFile(path.join(root, "credentials/google-session.bin"), "opaque preserved bytes");
+    const account = new GoogleAccount(path.join(root, "credentials"), { available: () => true,
+      encrypt: text => Buffer.from(text), decrypt: bytes => bytes.toString() }, async () => {});
+    await account.recoverLockedCredentials();
+    await assert.rejects((account as any).assertRecoveryIdentity({ sub: "different", email: "other@rajagiri.edu", name: "Other" }), /SAME college account/);
+    await (account as any).assertRecoveryIdentity({ sub, email: "original@rajagiri.edu", name: "Original" });
+    assert.ok((await fs.readdir(root)).some(name => name.startsWith("credentials.recovery-")));
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test("decryptable malformed, oversized or incomplete sessions use explicit recovery and preserve original bytes", async () => {
+  for (const session of ["null", "{}", "broken JSON", JSON.stringify({ identity: { sub: "x" }, tokens: {} }), "x".repeat(128 * 1024 + 1)]) {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "malformed-session-"));
+    try {
+      const account = new GoogleAccount(path.join(root, "credentials"), { available: () => true,
+        encrypt: text => Buffer.from(text), decrypt: bytes => bytes.toString() }, async () => {});
+      await account.configure({ installed: { client_id: "fixture.apps.googleusercontent.com", client_secret: "fixture" } });
+      await fs.writeFile(path.join(root, "credentials/google-session.bin"), session);
+      await assert.rejects(account.initialize(), CredentialUnlockError);
+      assert.equal(await fs.readFile(path.join(root, "credentials/google-session.bin"), "utf8"), session);
+      await account.recoverLockedCredentials();
+      const backup = (await fs.readdir(root)).find(name => name.startsWith("credentials.recovery-"))!;
+      assert.equal(await fs.readFile(path.join(root, backup, "google-session.bin"), "utf8"), session);
+    } finally { await fs.rm(root, { recursive: true, force: true }); }
+  }
+});
 
 test("an unavailable asynchronous native vault cannot persist plaintext credentials", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "record-async-vault-"));

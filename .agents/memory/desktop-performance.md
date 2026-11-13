@@ -40,7 +40,7 @@ Compare desktop hosts using external launch timing, labelled profile/cache condi
 
 Keep lightweight dashboard summaries separate from fully loaded, editable workspace data.
 
-**Why:** Summary-first startup omits source and image payloads. Treating that partial view as a complete editable workspace could overwrite stored content with missing data.
+**Why:** Summary-first startup omits source and image payloads. Treating that partial view as a complete editable workspace could overwrite stored content with missing data. The user confirmed that the installed full Tauri app opened successfully without noticeable delay, supporting this approach; that qualitative confirmation is not repeated cold-start timing or workflow acceptance.
 
 **How to apply:** Use an explicitly read-only summary contract until details are loaded. Report summary readiness separately from full-content availability, and never present a lighter diagnostic screen as production feature parity.
 

@@ -80,6 +80,7 @@ export type RuntimeInfo = {
   mode: "desktop" | "browser-preview"; version: string; platform: string;
   storageLabel: string; driveConnected: boolean; pythonAvailable: boolean | null;
   requiresSignIn?: boolean;
+  savedGenerationReservations?: boolean;
 };
 export type WorkerResult = { jobId: string; result: Record<string, unknown> };
 export interface DesktopBridge {

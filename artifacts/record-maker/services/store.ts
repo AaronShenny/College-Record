@@ -4,6 +4,7 @@ import { mapConcurrent } from "./concurrency";
 import { randomUUID, createHash } from "node:crypto";
 import { emptyWorkspace, workspaceSchema, type Workspace, type SaveReceipt } from "../src/lib/contracts";
 import { DASHBOARD_SUMMARY_FILE, MAX_SUMMARY_BYTES, deriveDashboardSummary } from "../src/lib/dashboard-summary";
+import { localTransaction, inLocalTransaction } from "./local-transaction";
 
 const UUID = /^[a-f0-9-]{36}$/;
 const MAX_WORKSPACE_BYTES = 256 * 1024 * 1024;
@@ -29,11 +30,18 @@ async function readManaged(root: string, relative: string) {
 }
 const json = (value: unknown) => JSON.stringify(value, null, 2);
 const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || "subject";
+const accountPins = new Map<string, Map<string, number>>();
 export class WorkspaceStore {
-  private queue: Promise<unknown> = Promise.resolve();
-  private pinned = new Map<string, number>();
-  constructor(readonly root: string) {}
+  private pinned: Map<string, number>;
+  constructor(readonly root: string) {
+    const key = process.platform === "win32" ? path.resolve(root).toLowerCase() : path.resolve(root);
+    if (!accountPins.has(key)) accountPins.set(key, new Map());
+    this.pinned = accountPins.get(key)!;
+  }
   async pointer(): Promise<Pointer | null> {
+    return localTransaction(this.root, () => this.readPointer());
+  }
+  private async readPointer(): Promise<Pointer | null> {
     try {
       const pointer = JSON.parse(await fs.readFile(path.join(this.root, "current.json"), "utf8")) as Pointer;
       if (!UUID.test(pointer.revisionId) || !Number.isFinite(Date.parse(pointer.savedAt)) || !Number.isInteger(pointer.pendingItems)) throw new Error("Invalid workspace pointer");
@@ -47,7 +55,7 @@ export class WorkspaceStore {
     return (await this.loadWithRevision()).workspace;
   }
   async loadWithRevision(): Promise<{ workspace: Workspace; revisionId: string | null }> {
-    await this.queue;
+    return localTransaction(this.root, async () => {
     const pointer = await this.pointer();
     if (!pointer) return { workspace: emptyWorkspace(), revisionId: null };
     return this.withSnapshot(async root => {
@@ -72,6 +80,7 @@ export class WorkspaceStore {
       }
       return { workspace, revisionId };
     }, false);
+    });
   }
   private async readSnapshot(root: string): Promise<Workspace> {
     try {
@@ -119,7 +128,7 @@ export class WorkspaceStore {
   save(input: Workspace, expectedRevision?: string | null): Promise<SaveReceipt> {
     const workspace = workspaceSchema.parse(input);
     if (Buffer.byteLength(JSON.stringify(workspace)) > MAX_WORKSPACE_BYTES) return Promise.reject(new Error("This workspace exceeds the 256 MB local-save limit."));
-    const operation = this.queue.then(async () => {
+    return localTransaction(this.root, async () => {
       // Compare inside the write queue, not before joining it: a background
       // download may already have queued a newer committed workspace.
       if (expectedRevision !== undefined && ((await this.pointer())?.revisionId ?? null) !== expectedRevision) {
@@ -127,10 +136,13 @@ export class WorkspaceStore {
       }
       return this.commit(workspace);
     });
-    this.queue = operation.catch(() => undefined);
-    return operation;
   }
-  private async commit(workspace: Workspace): Promise<SaveReceipt> {
+  async prepareIncoming(input: Workspace): Promise<SaveReceipt> {
+    if (!inLocalTransaction(this.root)) throw new Error("Snapshot preparation requires the local mutation boundary.");
+    if (Buffer.byteLength(JSON.stringify(input)) > 256 * 1024 * 1024) throw new Error("Workspace exceeds the 256 MB local limit. Existing files were preserved.");
+    return this.commit(workspaceSchema.parse(input), false);
+  }
+  private async commit(workspace: Workspace, publish = true): Promise<SaveReceipt> {
     await fs.mkdir(path.join(this.root, "snapshots"), { recursive: true });
     const revisionId = randomUUID();
     const root = path.join(this.root, "snapshots", revisionId);
@@ -216,6 +228,7 @@ export class WorkspaceStore {
       await writeDurable(resolveInside(root, DASHBOARD_SUMMARY_FILE), summary);
     }
     const receipt: SaveReceipt = { revisionId, savedAt: new Date().toISOString(), pendingItems: pending.length, storage: "filesystem" };
+    if (!publish) return receipt;
     const temporaryPointer = path.join(this.root, `.current-${revisionId}.json`);
     await writeDurable(temporaryPointer, json(receipt));
     // Commit last: interruption before this rename leaves the previous complete
@@ -242,31 +255,30 @@ export class WorkspaceStore {
     }
   }
   async snapshotPath(): Promise<string> {
-    await this.queue;
+    return localTransaction(this.root, async () => {
     const pointer = await this.pointer();
     if (!pointer) throw new Error("Save a subject before inspecting a snapshot");
     return path.join(this.root, "snapshots", pointer.revisionId);
+    });
   }
-  async withSnapshot<T>(job: (snapshot: string) => Promise<T>, cleanup = true): Promise<T> {
-    const capture = this.queue.then(async () => {
+  async withSnapshot<T>(job: (snapshot: string) => Promise<T>, cleanup = true, expectedRevision?: string): Promise<T> {
+    const capture = localTransaction(this.root, async () => {
       const pointer = await this.pointer();
       if (!pointer) throw new Error("Save a subject before inspecting a snapshot");
+      if (expectedRevision && pointer.revisionId !== expectedRevision) throw new Error("The saved generation revision changed. Save again before generating.");
       this.pinned.set(pointer.revisionId, (this.pinned.get(pointer.revisionId) || 0) + 1);
       return pointer.revisionId;
     });
-    this.queue = capture.catch(() => undefined);
     const revisionId = await capture;
     try { return await job(path.join(this.root, "snapshots", revisionId)); }
     finally {
       const remaining = (this.pinned.get(revisionId) || 1) - 1;
       if (remaining) this.pinned.set(revisionId, remaining); else this.pinned.delete(revisionId);
       if (cleanup) {
-        const clean = this.queue.then(async () => {
+        await localTransaction(this.root, async () => {
           const pointer = await this.pointer();
           if (pointer) await this.collectSnapshots(pointer.revisionId);
         });
-        this.queue = clean.catch(() => undefined);
-        await this.queue;
       }
     }
   }

@@ -9,13 +9,16 @@ const files = [
   "tauri/service-host.ts", "tauri/service-host.test.ts", "tauri/src-tauri/Cargo.toml",
   "tauri/src-tauri/Cargo.lock", "tauri/src-tauri/src/lib.rs", "tauri/src-tauri/src/protocol.rs",
   "tauri/src-tauri/src/service.rs", "tauri/src-tauri/src/vault.rs", "tauri/src-tauri/src/summary.rs",
-  "tauri/src-tauri/src/runtime_paths.rs",
+  "tauri/src-tauri/src/runtime_paths.rs", "tauri/src-tauri/src/saved_session.rs",
   "tauri/src-tauri/src/legacy_cache.rs", "tauri/src-tauri/src/app/mod.rs",
   "tauri/src-tauri/src/app/startup.rs", "tauri/src-tauri/src/app/adapters.rs",
   "tauri/src-tauri/src/app/updates.rs", "tauri/src-tauri/tauri.conf.json",
   "src/lib/tauri-bridge.ts", "src/components/startup-dashboard.tsx", "src/tauri-main.ts",
   "services/host-workflows.ts", "services/native-session.ts", "services/service-protocol.ts",
   "services/store.ts", "services/drive-sync.ts", "services/google-auth.ts",
+  "services/local-transaction.ts", "services/download-inventory.ts", "services/processing.ts",
+  "services/download-activation.test.ts", "services/sync.test.ts", "services/google-auth.test.ts",
+  "src/hooks/use-workspace.tsx", "src/lib/workflow-api.ts",
   "src/lib/contracts.ts", "src/lib/dashboard-summary.ts", "src/lib/program-checks.ts",
 ];
 const sourceHashes = {};

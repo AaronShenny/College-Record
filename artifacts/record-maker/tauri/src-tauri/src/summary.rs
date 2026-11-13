@@ -79,6 +79,9 @@ fn pointer(root: &Path) -> Result<Value, String> {
     Ok(pointer)
 }
 pub fn read_summary(root: &Path, expected_account: Option<&str>) -> Result<CachedDashboard, String> {
+    if root.join("_incoming-activation").exists() {
+        return Err("An interrupted incoming activation needs service recovery before a dashboard can be trusted.".into());
+    }
     let root = root.canonicalize().map_err(|_| "Local workspace is unavailable.")?;
     if let Some(key) = expected_account {
         if !valid_key(key) || root.file_name().and_then(|s| s.to_str()) != Some(format!("account-{key}").as_str()) {
@@ -111,7 +114,9 @@ pub fn read_summary(root: &Path, expected_account: Option<&str>) -> Result<Cache
         }
     }
     let after = pointer(&root)?;
-    if after["revisionId"] != before["revisionId"] { return Err("The saved revision changed while opening the dashboard.".into()); }
+    if after["revisionId"] != before["revisionId"] || root.join("_incoming-activation").exists() {
+        return Err("The saved revision changed or needs activation recovery while opening the dashboard.".into());
+    }
     Ok(CachedDashboard {
         summary, saved_at: after["savedAt"].as_str().unwrap().to_owned(),
         pending_items: after["pendingItems"].as_u64().unwrap(),
@@ -142,6 +147,9 @@ mod tests {
         fs::write(&file, index.to_string()).unwrap();
         // No app.json, source, template or image exists: this path only reads metadata.
         assert_eq!(read_summary(&root, Some(key)).unwrap().summary.subjects.len(), 1);
+        fs::create_dir(root.join("_incoming-activation")).unwrap();
+        assert!(read_summary(&root, Some(key)).is_err());
+        fs::remove_dir(root.join("_incoming-activation")).unwrap();
         assert!(read_summary(&root, Some("ffffffffffffffffffffffffffffffff")).is_err());
         index["revisionId"] = json!(uuid::Uuid::new_v4().to_string());
         fs::write(&file, index.to_string()).unwrap();

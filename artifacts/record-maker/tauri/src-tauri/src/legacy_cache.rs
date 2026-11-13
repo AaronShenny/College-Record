@@ -52,6 +52,49 @@ fn manifest(root: &Path) -> Result<Manifest, String> {
     Ok(out)
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum DestinationState { Absent, Empty, Initialized, Uncertain }
+
+pub fn destination_state(root: &Path) -> Result<DestinationState, String> {
+    if !root.exists() { return Ok(DestinationState::Absent); }
+    let metadata = fs::symlink_metadata(root).map_err(|_| "Could not inspect existing Tauri storage.")?;
+    if !metadata.is_dir() || linked(&metadata) { return Err("Existing Tauri storage is linked or invalid. Originals were preserved.".into()); }
+    for (name, field) in [("initialized.json", "initialized"), ("onboarding.json", "verified")] {
+        if let Ok(bytes) = fs::read(root.join(name)) {
+            if bytes.len() <= 4096 {
+                if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                    if value["schemaVersion"] == 1 && value[field] == true { return Ok(DestinationState::Initialized); }
+                }
+            }
+            return Ok(DestinationState::Uncertain);
+        }
+    }
+    // Compatibility with real Tauri caches created before initialization
+    // markers existed. An arbitrary directory is NOT an initialized cache.
+    if let Ok(accounts) = fs::read_dir(root.join("workspaces")) {
+        for entry in accounts {
+            let entry = entry.map_err(|_| "Could not inspect saved account storage.")?;
+            let metadata = fs::symlink_metadata(entry.path()).map_err(|_| "Could not inspect saved account storage.")?;
+            if linked(&metadata) { return Err("Linked account storage is not supported. Originals were preserved.".into()); }
+            let pointer = entry.path().join("current.json");
+            if let Ok(bytes) = fs::read(pointer) {
+                if bytes.len() <= 4096 {
+                    if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                        if let Some(id) = value["revisionId"].as_str() {
+                            if uuid::Uuid::parse_str(id).is_ok() && entry.path().join("snapshots").join(id).join("app.json").is_file() {
+                                return Ok(DestinationState::Initialized);
+                            }
+                        }
+                    }
+                }
+                return Ok(DestinationState::Uncertain);
+            }
+        }
+    }
+    let empty = fs::read_dir(root).map_err(|_| "Could not inspect existing Tauri storage.")?.next().is_none();
+    Ok(if empty { DestinationState::Empty } else { DestinationState::Uncertain })
+}
+
 pub fn stage_copy(source: &Path, destination: &Path, guard: impl Fn() -> Result<(), String>) -> Result<(), String> {
     guard()?;
     if destination.exists() { return Err("A Tauri workspace already exists. No legacy files were merged or overwritten.".into()); }
@@ -100,6 +143,26 @@ pub fn stage_copy(source: &Path, destination: &Path, guard: impl Fn() -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn precreated_or_interrupted_destinations_are_not_initialized_caches() {
+        let root = std::env::temp_dir().join(format!("destination-{}", uuid::Uuid::new_v4()));
+        assert_eq!(destination_state(&root).unwrap(), DestinationState::Absent);
+        fs::create_dir(&root).unwrap();
+        assert_eq!(destination_state(&root).unwrap(), DestinationState::Empty);
+        fs::create_dir(root.join("credentials")).unwrap();
+        fs::write(root.join("credentials/google-session.bin"), b"opaque").unwrap();
+        assert_eq!(destination_state(&root).unwrap(), DestinationState::Uncertain);
+        fs::write(root.join("initialized.json"), br#"{"schemaVersion":1,"initialized":true}"#).unwrap();
+        assert_eq!(destination_state(&root).unwrap(), DestinationState::Initialized);
+        fs::remove_file(root.join("initialized.json")).unwrap();
+        let account = root.join("workspaces/account-fixture");
+        let id = uuid::Uuid::new_v4().to_string();
+        fs::create_dir_all(account.join("snapshots").join(&id)).unwrap();
+        fs::write(account.join("snapshots").join(&id).join("app.json"), b"{}").unwrap();
+        fs::write(account.join("current.json"), format!(r#"{{"revisionId":"{id}"}}"#)).unwrap();
+        assert_eq!(destination_state(&root).unwrap(), DestinationState::Initialized);
+        fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn migration_preserves_pending_files_and_never_merges_or_activates_partial_copies() {
         let root = std::env::temp_dir().join(format!("onboarding-{}", uuid::Uuid::new_v4()));

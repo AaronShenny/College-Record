@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { WorkspaceStore } from "./store";
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -69,6 +70,7 @@ test("native generation commits DOCX before PDF and retains it when Office fails
     }],
   }] };
   try {
+    await new WorkspaceStore(root).save(workspace);
     const generated = service.run("generate", { workspace, subjectId: sid, programIds: [pid], mode: "combined", pdf: true });
     await started;
     const available = await service.list();

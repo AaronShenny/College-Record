@@ -3,9 +3,10 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { PythonWorker } from "./worker-client";
-import { resolveInside } from "./store";
+import { resolveInside, WorkspaceStore } from "./store";
 import { workspaceSchema } from "../src/lib/contracts";
 import type { DocumentFile } from "../src/lib/workflow-api";
+import { localTransaction } from "./local-transaction";
 
 export async function atomicJson(filename: string, value: unknown) {
   await fs.mkdir(path.dirname(filename), { recursive: true });
@@ -20,11 +21,31 @@ export async function readJson<T>(filename: string, missing: T): Promise<T> {
 }
 export class DocumentService {
   busy = 0;
-  private writes: Promise<unknown> = Promise.resolve();
-  constructor(readonly root: string, private worker: PythonWorker) {}
+  private reservations = new Map<string, { workspace: ReturnType<typeof workspaceSchema.parse>; release: () => Promise<void>; timer: NodeJS.Timeout }>();
+  constructor(readonly root: string, private worker: PythonWorker, private store = new WorkspaceStore(root)) {}
+  async prepareGeneration(input: unknown, expectedRevision: string | null) {
+    const workspace = workspaceSchema.parse(input);
+    return localTransaction(this.root, async () => {
+      if (this.busy || this.reservations.size) throw new Error("Finish the existing generation request before preparing another.");
+      const pointer = await this.store.pointer();
+      if ((pointer?.revisionId ?? null) !== expectedRevision) throw new Error("The saved generation revision changed. Reload before generating.");
+      const unchanged = pointer && JSON.stringify(await this.store.load()) === JSON.stringify(workspace);
+      const receipt = unchanged ? { ...pointer, storage: "filesystem" as const } : await this.store.save(workspace, expectedRevision);
+      let acquired!: () => void, rejected!: (error: unknown) => void, finish!: () => void;
+      const ready = new Promise<void>((resolve, reject) => { acquired = resolve; rejected = reject; });
+      const ended = new Promise<void>(resolve => { finish = resolve; });
+      const lifetime = this.store.withSnapshot(async () => { acquired(); await ended; }, true, receipt.revisionId);
+      void lifetime.catch(rejected);
+      await ready;
+      const generationToken = randomUUID();
+      const release = async () => { finish(); await lifetime; };
+      const timer = setTimeout(() => { this.reservations.delete(generationToken); void release().catch(() => undefined); }, 60_000).unref();
+      this.reservations.set(generationToken, { workspace, release, timer });
+      return { receipt, generationToken };
+    });
+  }
   async list(): Promise<DocumentFile[]> {
-    await this.writes;
-    return readJson(path.join(this.root, "generated", "index.json"), []);
+    return localTransaction(this.root, () => readJson(path.join(this.root, "generated", "index.json"), []));
   }
   async file(id: string) {
     z.string().uuid().parse(id);
@@ -33,6 +54,36 @@ export class DocumentService {
     return { item, filename: resolveInside(this.root, `generated/${item.id}/${path.basename(item.name)}`) };
   }
   async run(action: string, payload: Record<string, any>) {
+    if (action !== "generate") return this.runJob(action, payload);
+    if (!payload.generationToken) {
+      // Compatibility for the preserved Electron adapter: generation is still
+      // rejected unless its exact selected content is already saved.
+      const prepared = await localTransaction(this.root, async () => {
+        const loaded = await this.store.loadWithRevision();
+        if (!loaded.revisionId) throw new Error("Save successfully before generating.");
+        const selected = new Set<string>(payload.programIds);
+        const projection = { ...loaded.workspace, subjects: loaded.workspace.subjects.filter(s => s.id === payload.subjectId)
+          .map(s => ({ ...s, programs: s.programs.filter(p => selected.has(p.id)) })) };
+        if (JSON.stringify(projection) !== JSON.stringify(workspaceSchema.parse(payload.workspace))) {
+          throw new Error("Requested content has not been saved. Save successfully before generating.");
+        }
+        return this.prepareGeneration(loaded.workspace, loaded.revisionId);
+      });
+      payload = { ...payload, generationToken: prepared.generationToken };
+    }
+    const token = z.string().uuid().parse(payload.generationToken);
+    const reserved = this.reservations.get(token);
+    if (!reserved) throw new Error("The saved generation snapshot expired or belongs to another account. Save and generate again.");
+    this.reservations.delete(token); clearTimeout(reserved.timer);
+    try {
+      const selected = new Set<string>(z.array(z.string().uuid()).min(1).max(500).parse(payload.programIds));
+      const subject = reserved.workspace.subjects.find(s => s.id === payload.subjectId && !s.trashedAt);
+      if (!subject || [...selected].some(id => !subject.programs.some(p => p.id === id && !p.trashedAt))) throw new Error("The saved generation selection is invalid.");
+      const workspace = { ...reserved.workspace, subjects: [{ ...subject, programs: subject.programs.filter(p => selected.has(p.id)) }] };
+      return await this.runJob(action, { ...payload, workspace });
+    } finally { await reserved.release(); }
+  }
+  private async runJob(action: string, payload: Record<string, any>) {
     if (!["inspect-template", "import-questions", "generate", "export-pdf", "open-word"].includes(action)) throw new Error("Unsupported document job");
     const requestedPdf = action === "generate" && payload.pdf === true;
     if (action === "generate") {
@@ -85,11 +136,13 @@ export class DocumentService {
         }
       }
       if (action === "import-questions") {
+        await localTransaction(this.root, async () => {
         const archive = path.join(this.root, "imports", randomUUID());
         await fs.mkdir(archive, { recursive: true });
         const name = path.basename(String(payload.name)).replace(/[<>:"|?*\x00-\x1f]/g, "_");
         await fs.writeFile(path.join(archive, name), Buffer.from(payload.dataBase64, "base64"), { flag: "wx", mode: 0o600 });
         await atomicJson(path.join(archive, "import.json"), { name, subjectId: payload.subjectId || null, importedAt: new Date().toISOString() });
+        });
       }
       return result;
     } finally {
@@ -98,6 +151,7 @@ export class DocumentService {
     }
   }
   private async keep(documents: DocumentFile[]) {
+    await localTransaction(this.root, async () => {
     for (const doc of documents) {
       z.string().uuid().parse(doc.id);
       if (!doc.dataBase64 || !["docx", "pdf"].includes(doc.format) || !doc.name.endsWith(`.${doc.format}`) || path.basename(doc.name) !== doc.name) throw new Error("Document worker returned invalid file metadata");
@@ -106,11 +160,8 @@ export class DocumentService {
       await fs.writeFile(filename, Buffer.from(doc.dataBase64, "base64"), { flag: "wx", mode: 0o600 });
       delete doc.dataBase64;
     }
-    const update = this.writes.then(async () => {
       const docs = await readJson<DocumentFile[]>(path.join(this.root, "generated/index.json"), []);
       await atomicJson(path.join(this.root, "generated/index.json"), [...docs, ...documents]);
     });
-    this.writes = update.catch(() => undefined);
-    await update;
   }
 }

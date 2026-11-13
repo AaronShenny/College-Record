@@ -63,14 +63,14 @@ async function keepDocuments(documents: DocumentFile[]) {
     tx.oncomplete = () => resolve(); tx.onerror = tx.onabort = () => reject(new Error("Generated files could not be saved in this browser. Keep the page open and retry."));
   }); } finally { db.close(); }
 }
-export async function generateDocuments(workspace: Workspace, subjectId: string, programIds: string[], mode: "individual" | "combined", pdf: boolean): Promise<GenerationResult> {
+export async function generateDocuments(workspace: Workspace, subjectId: string, programIds: string[], mode: "individual" | "combined", pdf: boolean, generationToken?: string): Promise<GenerationResult> {
   const subject = workspace.subjects.find(item => item.id === subjectId);
   if (!subject) throw new Error("The selected subject is missing.");
   const selected = new Set(programIds);
   // IPC/JSON serializes this immutable selection before yielding. Do not clone
   // unrelated subjects, code and screenshot data on the UI thread.
   const snapshot = { ...workspace, subjects: [{ ...subject, programs: subject.programs.filter(program => selected.has(program.id)) }] };
-  const result = await feature<GenerationResult>("generate", { workspace: snapshot, subjectId, programIds, mode, pdf });
+  const result = await feature<GenerationResult>("generate", { ...(generationToken ? { generationToken } : { workspace: snapshot }), subjectId, programIds, mode, pdf });
   if (!window.recordMaker) await keepDocuments(result.documents);
   return result;
 }

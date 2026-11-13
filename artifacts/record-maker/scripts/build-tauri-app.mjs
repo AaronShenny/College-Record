@@ -62,7 +62,14 @@ const health = spawnSync(path.join(resources, "python/record-maker-worker.exe"),
   encoding: "utf8", shell: false, timeout: 30_000, windowsHide: true,
   input: JSON.stringify({ protocol: 1, id: "packaging-health", action: "health", params: {} }) + "\n",
 });
-if (health.status !== 0 || !health.stdout.trim() || JSON.parse(health.stdout.trim()).ok !== true) {
+let healthResponse;
+try { healthResponse = JSON.parse(health.stdout?.trim() || ""); } catch { /* Report only the fixed diagnostic below. */ }
+if (health.error || health.status !== 0 || healthResponse?.protocol !== 1 ||
+    healthResponse?.id !== "packaging-health" || healthResponse?.ok !== true ||
+    healthResponse?.result?.protocol !== 1 || healthResponse?.result?.status !== "ready" ||
+    healthResponse?.result?.studentCodeExecution !== false ||
+    !Array.isArray(healthResponse?.result?.capabilities) ||
+    !["health", "snapshot-summary"].every(capability => healthResponse.result.capabilities.includes(capability))) {
   throw new Error("The actual packaged Python helper failed its Windows health check.");
 }
 const require = createRequire(import.meta.url);
@@ -84,7 +91,7 @@ await fs.cp(path.join(root, "tauri/src-tauri/target/release/bundle/nsis"), outpu
 await fs.copyFile(path.join(root, "tauri/src-tauri/target/release/college-record-maker.exe"), path.join(output, "college-record-maker.exe"));
 await fs.copyFile(path.join(root, "tauri/WINDOWS-VERIFICATION.md"), path.join(output, "WINDOWS-VERIFICATION.md"));
 await fs.writeFile(path.join(output, "build-status.json"), JSON.stringify({
-  version: "0.2.0", host: "tauri", ownerCutoverApproved: false, targetHardwarePerformanceVerified: false,
+  version: "0.2.1", host: "tauri", ownerCutoverApproved: false, targetHardwarePerformanceVerified: false,
   officeVerified: false, updateFeedConfigured: !!feed, pythonPackaging: "directory",
 }, null, 2));
 console.log("Tauri trial installer created. Complete Windows verification before replacing Electron.");

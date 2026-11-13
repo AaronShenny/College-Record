@@ -25,6 +25,7 @@ export class NativeSession {
       storageLabel: services.root, driveConnected: !!services.account.identity, pythonAvailable: null,
       requiresSignIn: this.platform.packaged, workspaceAccount: this.rendererAccount,
       workspaceRevision: this.rendererRevision,
+      savedGenerationReservations: true,
     };
     if (method === "load") {
       const store = services.store, started = performance.now();
@@ -56,6 +57,22 @@ export class NativeSession {
     if (method === "workflow") {
       const input = z.object({ action: z.unknown(), input: z.unknown() }).strict().parse(payload);
       const [action, values] = workflowInput(input.action, input.input);
+      if (action === "prepare-generation") {
+        const store = services.store;
+        if (!services.canWork || services.switching || this.rendererRoot !== store.root ||
+            this.rendererAccount !== (services.account.identity?.email ?? null) ||
+            values.account !== this.rendererAccount || values.expectedRevision !== this.rendererRevision) {
+          throw new Error("The generation account or revision changed. Reload the correct records before generating.");
+        }
+        const result = await store.prepareGeneration(workspaceSchema.parse(values.workspace), this.rendererRevision);
+        this.rendererRevision = result.receipt.revisionId;
+        await services.sync.invalidateStatus();
+        return result;
+      }
+      if (action === "generate" && (services.switching || this.rendererRoot !== services.root ||
+          this.rendererAccount !== (services.account.identity?.email ?? null))) {
+        throw new Error("The generation account changed. Reload before generating.");
+      }
       return services.run(action, values);
     }
     if (method === "renderer-ready") {

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { bridge } from "@/lib/bridge";
-import { cloudStatus, generateDocuments, type CloudStatus, type GenerationResult } from "@/lib/workflow-api";
-import { workspaceSchema, type Program, type RuntimeInfo, type Subject, type Workspace } from "@/lib/contracts";
+import { cloudStatus, feature, generateDocuments, type CloudStatus, type GenerationResult } from "@/lib/workflow-api";
+import { workspaceSchema, type Program, type RuntimeInfo, type Subject, type Workspace, type SaveReceipt } from "@/lib/contracts";
 import { mergeGenerationChoice, type GenerationChoice } from "@/lib/generation-choice";
 export type { GenerationChoice } from "@/lib/generation-choice";
 export { programChecks, requiredMappings } from "@/lib/program-checks";
@@ -73,6 +73,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const rev = useRef(0);
   const savedRev = useRef(0);
   const inFlight = useRef(false);
+  const flight = useRef<Promise<void> | null>(null);
+  const preparingGeneration = useRef(false);
+  const persistedRevision = useRef<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const loading = useRef(false);
   const accountReload = useRef<string | null | undefined>(undefined);
@@ -99,7 +102,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const flush = useCallback(async () => {
     window.clearTimeout(timer.current);
-    if (inFlight.current || !latest.current) return;
+    if (inFlight.current) return flight.current;
+    if (preparingGeneration.current || !latest.current) return;
     if (savedRev.current === rev.current) return;
     const target = rev.current;
     let input = latest.current;
@@ -113,6 +117,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
     inFlight.current = true;
     setStatus({ kind: "saving", savedAt: lastSavedAt.current });
+    const operation = (async () => {
     let failed = false;
     try {
       // The native background service validates before committing. Repeating
@@ -122,14 +127,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       savedRev.current = Math.max(savedRev.current, target);
       lastSavedAt.current = receipt.savedAt;
       setLocalRevision(receipt.revisionId);
+      persistedRevision.current = receipt.revisionId;
       setStatus({ kind: rev.current === target ? "saved" : "dirty", savedAt: receipt.savedAt, storage: receipt.storage, pending: receipt.pendingItems });
     } catch (e) {
       failed = true;
       setStatus({ kind: "error", message: errMsg(e), savedAt: lastSavedAt.current });
     } finally {
       inFlight.current = false;
+      flight.current = null;
       if (!failed && rev.current !== savedRev.current) void flush();
     }
+    })();
+    flight.current = operation;
+    return operation;
   }, [setStatus]);
 
   const update = useCallback((fn: (w: Workspace) => Workspace) => {
@@ -166,6 +176,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       // it again during logout, account transitions or later reloads.
       window.recordMakerStartup = undefined;
       latest.current = w; rev.current = 0; savedRev.current = 0; setLocalRevision(info.workspaceRevision ?? null);
+      persistedRevision.current = info.workspaceRevision ?? null;
       setRuntime(info); setRuntimeError(null);
       setWorkspace(w); setStatus({ kind: "idle" });
     } catch (e) {
@@ -198,15 +209,52 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
     genRunning.current = true;
     const snapshot = latest.current; // frozen at request time
+    const requestedRevision = rev.current;
+    programIds = [...programIds];
+    preparingGeneration.current = true;
+    window.clearTimeout(timer.current);
     setGen({ state: "running", subjectId, count: programIds.length, mode, startedAt: nowIso() });
-    generateDocuments(snapshot, subjectId, programIds, mode, pdf)
+    (async () => {
+      try {
+        await flight.current;
+        if (statusRef.current === "error" || statusRef.current === "invalid") {
+          throw new Error("The prerequisite local save failed. Save successfully before generating.");
+        }
+        if (runtime?.savedGenerationReservations) {
+          const prepared = await feature<{ receipt: SaveReceipt; generationToken: string }>("prepare-generation",
+            { workspace: snapshot, expectedRevision: persistedRevision.current, account: runtime.workspaceAccount ?? null });
+          savedRev.current = Math.max(savedRev.current, requestedRevision);
+          persistedRevision.current = prepared.receipt.revisionId;
+          lastSavedAt.current = prepared.receipt.savedAt;
+          setLocalRevision(prepared.receipt.revisionId);
+          setStatus({ kind: rev.current === requestedRevision ? "saved" : "dirty", savedAt: prepared.receipt.savedAt,
+            storage: prepared.receipt.storage, pending: prepared.receipt.pendingItems });
+          // The service has already pinned this exact committed revision.
+          const result = generateDocuments(snapshot, subjectId, programIds, mode, pdf, prepared.generationToken);
+          preparingGeneration.current = false;
+          void flush();
+          return await result;
+        }
+        // Browser / preserved Electron compatibility still requires a successful
+        // save. The native document service compares requested vs saved content.
+        preparingGeneration.current = false;
+        await flush();
+        if (savedRev.current < requestedRevision || ["error", "invalid"].includes(statusRef.current)) {
+          throw new Error("Save successfully before generating.");
+        }
+        return await generateDocuments(snapshot, subjectId, programIds, mode, pdf);
+      } finally {
+        preparingGeneration.current = false;
+        if (statusRef.current !== "error" && statusRef.current !== "invalid") void flush();
+      }
+    })()
       .then(result => {
         setGen({ state: "done", subjectId, count: programIds.length, mode, result });
         notify(result.failures.length ? `${result.documents.length} file(s) saved, ${result.failures.length} failure(s). See Documents.` : `${result.documents.length} file(s) generated.`, result.failures.length ? "error" : "info");
       })
       .catch(e => { setGen({ state: "error", subjectId, count: programIds.length, mode, error: errMsg(e) }); notify("Generation failed. See Documents.", "error"); })
       .finally(() => { genRunning.current = false; setDocsVersion(v => v + 1); });
-  }, [notify]);
+  }, [notify, runtime, flush, setStatus]);
   const isClean = (save.kind === "idle" || save.kind === "saved") && drafts.size === 0;
   useEffect(() => {
     void window.recordMakerEditState?.(!isClean || gen.state === "running")

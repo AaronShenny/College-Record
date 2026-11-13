@@ -1,13 +1,13 @@
 # College Word Record Maker
 ## Software Requirements Specification
 
-**Version:** 0.2 — Draft for review
+**Version:** 0.3 — Reconciled requirements draft
 
 **Target release:** First version of the Windows desktop application
 
 **Requirements basis:** User-confirmed requirements and workflow discussions
 
-**Approval status:** Not baselined; not authorization to begin application development
+**Approval status:** Reconciles approved implementation decisions; deferred release checks are not certified by this document
 
 ## 1. Purpose and document conventions
 
@@ -17,11 +17,11 @@ Sections 2–8 describe confirmed product scope and functional behavior. Require
 
 “Shall” describes required behavior within the stated status. “Proposed” and “Open” explicitly identify items that have not been agreed. The approved technology stack and logical Drive storage layout are stated requirements/design decisions; detailed physical schemas, deployment, and unresolved compatibility details are not finalized.
 
-### 1.2 Revision 0.2 summary
+### 1.2 Revision 0.3 summary
 
-This revision records the confirmed Electron + React + Python stack and Windows 10/11 target; automatic update behavior; shared-computer account separation, workspace download, and sync-gated local cleanup; the approved Drive folder and JSON/file layout and its sync safeguards; version-one single-computer use with conflict resolution deferred to version 2; the supplied PDF extractor baseline; and fixed-snapshot, resilient document generation. It removes the superseded conflict rule. This revision does not claim that these capabilities are implemented.
+This revision reconciles the approved Tauri host with the retained React interface, shared Node storage/Drive services, and lazy directory-packaged Python document engine on Windows 10/11 x64. It also records independently optional per-field font family/size overrides with template defaults and compact source export without modifying stored source files. Account separation, Drive JSON/files, sync-gated cleanup, version-one single-computer use, the supplied PDF extractor and saved immutable generation snapshots remain requirements. Automatic-update signing/hosting and formal release acceptance remain deferred.
 
-**Implementation status:** The existing desktop foundation provides limited local editing and storage only. Google sign-in, Drive sync, the supplied PDF extractor, template mapping/document generation, Word/PDF integration, and the automatic-update release service are not connected in that foundation. The requirements below describe the target product, not completed or tested capabilities.
+**Implementation status:** The owner confirmed successful installed Tauri launch, Google sign-in/existing Drive records, editing/saving/reopening, and DOCX/PDF generation/opening. This is not exhaustive acceptance evidence. Formal repeated hardware timings, remaining Windows recovery/installer/failure cases and signed automatic-update setup remain deferred; updates stay disabled until configured and verified.
 
 ### 1.1 Terms
 
@@ -49,7 +49,7 @@ The application serves students at the user’s college, rather than only its cr
 ### 2.2 Confirmed first-version capabilities
 
 - Windows desktop application with eligible-college-account sign-in.
-- Windows 10 and Windows 11 support using Electron, React, and Python.
+- Windows 10 and Windows 11 x64 support using Tauri, React, shared Node services and Python.
 - Background download of the signed-in student’s app workspace, with account-separated local work and pending sync.
 - Automatic checks and verified update downloads, with safe Restart now / Later behavior.
 - Semester/subject organization backed by the student’s own Drive.
@@ -70,7 +70,7 @@ The application serves students at the user’s college, rather than only its cr
 - AI-generated code, answers, titles, descriptions, or output.
 - OCR or extraction from scanned/image-only PDF pages.
 - In-app rendered Word-document preview or a full Word editor.
-- In-app font/style overrides or a visual template designer.
+- A full visual template designer or general rich-text/style editor. Optional per-field font family and size overrides are in scope.
 - Template variables inside Word text boxes or shapes.
 - Editable table-valued custom fields.
 - Per-program templates within one subject and manual program reordering in combined records.
@@ -92,10 +92,10 @@ The confirmed actor is the Student. No administrator, teacher, shared editor, or
 
 ### 3.2 Environment
 
-- Target platform: Windows 10 and Windows 11 desktop, using Electron + React + Python. Minimum supported Windows builds and processor architectures remain open. The existing foundation’s initial packaging target does not narrow these requirements.
+- Target platform: Windows 10 and Windows 11 x64 desktop, using Tauri + React + shared Node services + Python. Minimum Windows builds and supported Word versions remain open; other processor architectures are outside the approved initial packaging scope.
 - The app shall support personal and shared Windows computers. Only one computer may be active for a student at a time under the version-one workflow.
 - Installed Windows desktop Microsoft Word is required for opening generated documents through the agreed inspection workflow and for PDF export. Supported Word versions remain open.
-- Automatic updates shall check in the background and download verified updates. Installation shall be coordinated across the application interface and bundled Python helper.
+- When an owner-configured signed release feed is enabled, automatic updates shall check in the background and download verified updates. Installation shall coordinate the Tauri interface and bundled Node/Python helpers. Builds without this configuration shall explicitly report updates disabled.
 - Google sign-in and Drive require an internet connection for first-time authentication and uncached content.
 - Word is not a prerequisite for editing record data or generating ordinary `.docx` documents.
 - No Python interpreter, Java JDK, or C compiler is required for student code, because the app will not execute it.
@@ -123,7 +123,7 @@ Stable internal IDs shall not depend on display names, program numbers, or paths
 ### Platform requirements
 
 - **PLAT-01:** The first-version desktop application shall support Windows 10 and Windows 11. Minimum supported Windows builds and processor architectures remain open (OPEN-01).
-- **PLAT-02:** The desktop application shall use Electron, React, and Python. Existing foundation packaging choices do not narrow or add requirements for Windows builds or processor architectures.
+- **PLAT-02:** Tauri shall own the local native window, restricted commands, secure credential adapter and child-process lifetime. React shall provide the interface; shared Node services shall retain local JSON/files and Drive orchestration; Python shall start lazily for requested document/extraction jobs as an installed directory, not a self-extracting single-file helper. Electron remains an isolated recovery/reference path, not a production Tauri dependency.
 
 ### 4.1 Identity and data ownership
 
@@ -168,7 +168,7 @@ Example mappings are illustrative, not mandatory variable names: `[NO]` → prog
 
 ### 4.4 Formatting and images
 
-- **FMT-01:** Inserted content shall preserve the template’s formatting; the app shall not provide field-level font or style overrides. Source-code indentation and line breaks shall be retained.
+- **FMT-01:** Template font family and size shall be inherited by default. Each mapped field may independently override font family, font size, both or neither. Compact source export shall normalize platform line endings, remove blank-only source lines and artificial paragraph spacing, and retain indentation and boundaries of nonempty source lines. Output text shall retain intentional blank lines while normalizing platform line endings. These export changes shall not modify stored source or output content.
 - **FMT-02:** Image insertion shall support fitting to available width and fitting into a template-defined image area. The exact identification mechanism for a defined area remains open.
 - **FMT-03:** Images shall retain their proportions without automatic stretching or cropping.
 - **FMT-04:** A screenshot too tall for a page shall shrink to fit the available single-page area, or its smaller designated template area. It shall not be automatically split across pages.
@@ -254,8 +254,8 @@ The PDF selection scope, output naming, and retention of successive PDF exports 
 
 ### 4.10 Automatic updates
 
-- **UPD-01:** Version 1 shall check for updates in the background and automatically download verified updates.
-- **UPD-02:** When an update is ready, the app shall offer Restart now or Later. Updating shall coordinate the desktop interface and bundled Python helper as one compatible release.
+- **UPD-01:** When the signed release feed is configured and verified, version 1 shall check for updates in the background and automatically download verified updates. Until then, builds shall report updates disabled rather than implying a functioning update service.
+- **UPD-02:** When an update is ready, the app shall offer Restart now or Later. Updating shall coordinate the Tauri/React interface and bundled Node/Python helpers as one compatible release.
 - **UPD-03:** The app shall not restart during editing, extraction, or document generation. Before restarting, it shall finish local saving and preserve queued Drive uploads; Drive synchronization need not finish first.
 - **UPD-04:** Choosing Later or encountering an update-service failure shall not interrupt normal or offline work.
 - **UPD-05:** Update hosting, signing arrangements, and recovery from a failed installation remain open decisions (OPEN-01).
@@ -311,7 +311,7 @@ On personal or shared Windows computers, sign-in triggers a background download 
 
 ### WF-07: Apply an automatic update
 
-The app checks in the background and automatically downloads a verified update. It offers Restart now or Later and coordinates the interface and bundled Python helper. It does not restart during editing, extraction, or generation. Before restarting, it finishes local saves and preserves queued uploads but does not wait for Drive sync. Later and update-service failures leave normal and offline work available.
+Once the signed feed is configured and verified, the app checks in the background and automatically downloads a verified update. It offers Restart now or Later and coordinates the Tauri/React interface and bundled Node/Python helpers. It does not restart during editing, extraction, or generation. Before restarting, it finishes local saves and preserves queued uploads but does not wait for Drive sync. Later and update-service failures leave normal and offline work available. Without this configuration, updates remain explicitly disabled.
 
 ### WF-08: Generate while editing
 
@@ -341,7 +341,7 @@ This model records the approved logical JSON/file layout described in Section 3.
 
 ### 7.1 Desktop application surfaces
 
-The functional surfaces are: sign-in/access status; background workspace-download and account status; semester and subject navigation; template/field mapping; PDF/CSV import review; optional source-folder assignment; program editing/content preview; document generation/open-in-Word; save/sync status; recoverable Trash; logout-and-delete-local-files; and updater status with Restart now / Later. These describe required capabilities, not approved visual layouts. The approved desktop stack is Electron + React + Python.
+The functional surfaces are: sign-in/access status; background workspace-download and account status; semester and subject navigation; template/field mapping with optional typography; PDF/CSV import review; optional source-folder assignment; program editing/content preview; document generation/open-in-Word; save/sync status; recoverable Trash; logout-and-delete-local-files; and updater status with Restart now / Later. These describe required capabilities, not approved visual layouts. The approved desktop stack is Tauri + React + shared Node services + Python.
 
 ### 7.2 Google identity and Drive
 
@@ -357,7 +357,7 @@ The integration opens generated documents and converts supported record outputs 
 
 ### 7.5 Update service
 
-The updater checks and downloads verified updates in the background and coordinates compatible updates to the Electron/React interface and bundled Python helper. Release hosting, signing, and failed-install recovery are not yet selected. The existing desktop foundation and manually triggered unsigned build workflow do not constitute an operating update service or verified release.
+The native updater, once configured and release-verified, checks and downloads signed updates in the background and coordinates the Tauri/React interface with bundled Node/Python helpers. It must verify the Tauri signature and approved Windows publisher before permission-based installation. Release hosting/signing and failed-install acceptance remain deferred. An unsigned installer is not an operating update service or release approval.
 
 ## 8. Important business-rule distinctions
 
@@ -393,15 +393,15 @@ No specific encryption certification, regulatory compliance, performance benchma
 
 | ID | Unresolved point | Why it matters |
 | --- | --- | --- |
-| OPEN-01 | Minimum Windows 10/11 builds; supported processor architectures and Word versions; update hosting, signing, and failed-install recovery. | Defines compatibility and release operations. The approved stack is Electron + React + Python; existing packaging defaults do not narrow the OS or architecture requirement. |
+| OPEN-01 | Minimum Windows 10/11 builds and Word versions; update hosting, signing, and failed-install recovery. | Defines remaining compatibility and release operations. The approved stack is Tauri + React + shared Node services + Python, initially Windows x64. |
 | OPEN-02 | Google OAuth client arrangement, scopes, college administrator approval, and consent requirements. | Eligible domain membership does not guarantee that college policy permits the integration. |
 | OPEN-03 | Offline session validity, remaining account-switching details, and explicit confirmation of the stated app-workspace-only download/cleanup boundary. | The agreed cleanup is sync-gated and must preserve work; the working interpretation is not permission to delete unrelated local files, original imports, or Drive originals. |
 | OPEN-04 | Exact built-in field catalog, program-number syntax/ranges, semester padding, naming conflicts, and rename behavior. | Makes organization, validation, and imports deterministic. |
 | OPEN-05 | Placeholder grammar/case sensitivity, unsupported-location warnings, and how missing optional mappings are resolved. | Detection and validation need precise rules. |
 | OPEN-06 | How students designate an image area in Word: table cell, replacement image, or another agreed marker. | Both image-fitting modes are approved, but the mechanism is not. |
-| OPEN-07 | Supported template structures: nested tables, header/footer variants, section breaks, numbering, and mixed-layout combination. | Template-only formatting does not guarantee every Word construct works without a defined compatibility boundary. |
+| OPEN-07 | Supported template structures: nested tables, header/footer variants, section breaks, numbering, and mixed-layout combination. | Template defaults and optional field typography do not guarantee every Word construct works without a defined compatibility boundary. |
 | OPEN-08 | Import encodings, selected PDF pages, complex PDF layouts, supported image types, clipboard formats, and size/count limits. | Bounds input compatibility and resource usage without promising OCR. |
-| OPEN-09 | How source filenames are identified in generated content without adding unapproved formatting; partial-source updates/import-role collisions. | Separate file mappings must remain compatible with template-controlled layout. |
+| OPEN-09 | How source filenames are identified in generated content; partial-source updates/import-role collisions. | Separate file mappings must remain compatible with template defaults, independent font family/size overrides and the approved compact-source export, without modifying stored source content. |
 | OPEN-10 | Autosave timing, Save Now offline semantics, sync scheduling, cancellation, and progress/error behavior. | Defines when data is locally durable versus stored in Drive; confirmed local-first and recovery safeguards still apply. |
 | OPEN-11 | Detailed file compatibility: import encodings, selected PDF pages, complex layouts, image/clipboard formats, and size/count limits. | These bounds affect supported content without changing the confirmed selectable-text-only PDF scope. |
 | OPEN-12 | Trash retention, generated-version retention, restoration naming conflicts, and treatment of related generated files when a program is deleted. | Recovery scope and storage usage are not yet fixed. |
@@ -450,7 +450,7 @@ The following scenarios are derived from confirmed requirements. They are intend
 | AC-28 | Before a combined record starts, all included required content is validated; an included program is not silently omitted following a generation failure. | DOC-04, DOC-15 |
 | AC-29 | Selectable-text PDF extraction uses the supplied `pdf_to_qns` baseline and presents editable review; scanned PDFs receive no OCR or AI extraction. | IMP-03–05, IMP-10 |
 | AC-30 | The Drive app folder uses the approved JSON-plus-separate-files layout, stable IDs, generation metadata, recoverable `_trash` with original locations, and deletion markers. Drive remains authoritative; no separate database is introduced. | ORG-06–08, SAVE-07, SAVE-12 |
-| AC-31 | The first-version desktop application identifies Windows 10/11 and Electron + React + Python as its target, without treating packaging defaults as additional platform requirements. | PLAT-01–02 |
+| AC-31 | The first-version desktop application uses Windows 10/11 x64 and Tauri + React + shared Node services + lazy directory-packaged Python; failed native bridges never fall back to browser storage. | PLAT-01–02 |
 
 ## 12. Review and approval
 

@@ -33,6 +33,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           pnpm --filter @workspace/record-maker run test:native-service 2>&1 | Tee-Object generated-artifacts/tauri-foundation/service-tests.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify document formatting and question extraction
+        shell: pwsh
+        run: |
+          python -m unittest discover -s artifacts/record-maker/python -p test_engine.py -v 2>&1 | Tee-Object generated-artifacts/tauri-foundation/document-tests.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build complete trial installer
         shell: pwsh
         env:

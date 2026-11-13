@@ -4,6 +4,30 @@ This is the complete app integration, not the isolated startup test.
 It is a **trial build**, not an approved replacement release. An unsigned trial
 installer and unconfigured automatic updates are not evidence of release readiness.
 
+## Current acceptance evidence
+
+The complete Windows release application and NSIS installer built successfully,
+and the supplied Windows evidence passed 61 shared, 7 service/bridge and 10 native
+tests. The owner confirmed that the installed Tauri app opened successfully
+without a noticeable delay and that these installed-app workflows worked:
+
+- Google sign-in and existing Drive records.
+- Editing, saving and reopening records.
+- Generating and opening DOCX/PDF documents.
+
+After confirming these workflows, the owner explicitly approved closing the
+migration implementation and tracking the remaining release checks separately.
+This is acceptance of the implementation, not a waiver that marks unperformed
+tests as passed or permission to publish, enable updates or delete the Electron
+fallback. Repeated startup measurements, remaining Windows workflow/installer/
+recovery edge cases, and signed-update setup remain deferred release work.
+
+These are owner-confirmed functional results, not yet repeated timed cold/warm
+startup results, every edge case in the checklist or signed-update acceptance.
+Keep these checks distinct; do not reset or rerun a passed build just to record
+the successful launch. Subsequent Windows builds also run the document-engine
+regression suite (the installed-Word-only check remains separate).
+
 ## Build
 
 Run **Tauri desktop Windows trial installer** in GitHub Actions. It needs the
@@ -100,3 +124,31 @@ If offline/unsynced, stop and preserve both caches for inspection.
 
 Do not uninstall the working Electron app or delete its backup until the owner
 has accepted functional, data-integrity and hardware-performance evidence.
+
+## Targeted checks for the 0.2.1 repair
+
+Run the existing **Tauri Desktop Windows** build workflow on the repaired source,
+then install that artifact separately from the working fallback. The local asset
+build and portable tests do not compile or run Windows-only Tauri/DPAPI code.
+
+Use disposable accounts/caches, never production student work, for fault cases:
+
+1. Download a record with multiple generated/import files. Save an edit or create
+   a document during transfer; the local change must survive and sync must report
+   a retriable preservation error, not overwrite or falsely acknowledge.
+2. Interrupt a download, retry, and restart during activation. The whole old
+   inventory or the fully committed new inventory must appear, never a mixture.
+   A missing/invalid indexed file must prevent acknowledgment.
+3. Click Generate during autosave and after an induced save failure. It must wait
+   or explain that saving failed. Once reserved, later edits must not alter that
+   job; reopen its resulting DOCX/PDF with real Microsoft Word.
+4. On disposable caches, cancel recovery for invalid/oversized/decryptable-invalid
+   sessions and confirm all original bytes remain. Confirm recovery retains an
+   encrypted backup and refuses the wrong account when cached ownership is known.
+5. Exercise empty, pre-created and interrupted migration destinations. Declining
+   migration must preserve both roots; accepting must preserve the uncertain
+   destination separately and never merge accounts. A verified existing Tauri
+   cache must not ask to migrate repeatedly.
+
+This checklist is pending Windows evidence, not another release approval or a
+request to delete the Electron backup. Signed updates remain disabled.

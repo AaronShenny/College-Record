@@ -134,6 +134,9 @@ export class BackgroundStore {
   save(workspace: Workspace, expectedRevision?: string | null) {
     return this.client.request<SaveReceipt>("store-save", { workspace, expectedRevision });
   }
+  prepareGeneration(workspace: Workspace, expectedRevision: string | null) {
+    return this.client.request<{ receipt: SaveReceipt; generationToken: string }>("store-save-generation", { workspace, expectedRevision });
+  }
 }
 export class BackgroundSync {
   busy = false;

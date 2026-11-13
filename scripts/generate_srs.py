@@ -1,4 +1,9 @@
-"""Export the reviewed Markdown SRS to an editable Word document."""
+"""Export the current Markdown SRS to an editable Word document.
+
+Fonts/spacing in this exporter style the SRS itself, not students' generated
+records. Product typography and platform requirements come from the Markdown;
+exporting it is not evidence of Windows or production-release acceptance.
+"""
 
 from pathlib import Path
 import re

@@ -176,3 +176,115 @@ test("generated-file-only sync creates a new remote commit without inventing sou
     assert.equal((await second.pointer())?.revisionId, before?.revisionId);
   } finally { fake.restore(); await fs.rm(root, { recursive: true, force: true }); }
 });
+
+test("a local save during extra-file download is never adopted as permission to overwrite", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "record-download-race-"));
+  const fake = fakeDrive(); let hook: ReturnType<typeof mock.method> | undefined;
+  try {
+    const first = new WorkspaceStore(path.join(root, "first")), second = new WorkspaceStore(path.join(root, "second"));
+    const original = data(); await first.save(original);
+    const a = new DriveSync(account, () => first), b = new DriveSync(account, () => second);
+    await a.sync(); await b.sync();
+    await fs.mkdir(path.join(first.root, "generated"), { recursive: true });
+    await fs.writeFile(path.join(first.root, "generated/new.docx"), "remote");
+    await a.sync();
+    const bytes = DriveFiles.prototype.bytes; let injected = false;
+    const edited = structuredClone(original); edited.subjects[0].name = "Locally saved during download";
+    hook = mock.method(DriveFiles.prototype, "bytes", async function(this: DriveFiles, id: string) {
+      if (!injected && fake.entries.get(id)?.meta.name.startsWith("new.")) {
+        injected = true; await second.save(edited);
+      }
+      return bytes.call(this, id);
+    });
+    await assert.rejects(b.sync(), /Local changes arrived/);
+    assert.ok(injected); assert.deepEqual(await second.load(), edited);
+    await assert.rejects(fs.stat(path.join(second.root, "generated/new.docx")), { code: "ENOENT" });
+  } finally { hook?.mock.restore(); fake.restore(); await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test("failed extra-file downloads leave no live partial files and retry normally, including first download", async () => {
+  for (const existing of [false, true]) {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "record-download-failure-"));
+    const fake = fakeDrive(); let hook: ReturnType<typeof mock.method> | undefined;
+    try {
+      const first = new WorkspaceStore(path.join(root, "first")), second = new WorkspaceStore(path.join(root, "second"));
+      await first.save(data());
+      const a = new DriveSync(account, () => first), b = new DriveSync(account, () => second);
+      await a.sync(); if (existing) await b.sync();
+      await fs.mkdir(path.join(first.root, "generated"), { recursive: true });
+      await fs.writeFile(path.join(first.root, "generated/a.docx"), "first");
+      await fs.writeFile(path.join(first.root, "generated/b.docx"), "second");
+      await a.sync();
+      const before = await second.pointer(), bytes = DriveFiles.prototype.bytes;
+      hook = mock.method(DriveFiles.prototype, "bytes", async function(this: DriveFiles, id: string) {
+        if (fake.entries.get(id)?.meta.name.startsWith("b.")) throw new Error("injected download failure");
+        return bytes.call(this, id);
+      });
+      await assert.rejects(b.sync(), /injected download failure/);
+      assert.deepEqual(await second.pointer(), before);
+      await assert.rejects(fs.stat(path.join(second.root, "generated/a.docx")), { code: "ENOENT" });
+      hook.mock.restore(); hook = undefined;
+      assert.equal((await b.sync()).pending, false);
+      assert.equal(await fs.readFile(path.join(second.root, "generated/b.docx"), "utf8"), "second");
+    } finally { hook?.mock.restore(); fake.restore(); await fs.rm(root, { recursive: true, force: true }); }
+  }
+});
+
+test("old provable remote partials can retry, but unrelated local files remain protected", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "old-partial-recovery-"));
+  const fake = fakeDrive();
+  try {
+    const first = new WorkspaceStore(path.join(root, "first")), second = new WorkspaceStore(path.join(root, "second"));
+    await first.save(data());
+    const a = new DriveSync(account, () => first), b = new DriveSync(account, () => second);
+    await a.sync(); await b.sync();
+    for (const store of [first, second]) await fs.mkdir(path.join(store.root, "generated"), { recursive: true });
+    await fs.writeFile(path.join(first.root, "generated/a.docx"), "verified remote partial");
+    await fs.writeFile(path.join(first.root, "generated/b.docx"), "remaining remote file");
+    await a.sync();
+    await fs.writeFile(path.join(second.root, "generated/a.docx"), "verified remote partial");
+    await fs.writeFile(path.join(second.root, "generated/local.docx"), "genuine local work");
+    await assert.rejects(b.sync(), /pending edits/);
+    assert.equal(await fs.readFile(path.join(second.root, "generated/local.docx"), "utf8"), "genuine local work");
+    // Remove only our disposable fixture to represent the provable-partials case.
+    await fs.unlink(path.join(second.root, "generated/local.docx"));
+    assert.equal((await b.sync()).pending, false);
+    assert.equal(await fs.readFile(path.join(second.root, "generated/b.docx"), "utf8"), "remaining remote file");
+  } finally { fake.restore(); await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test("extra-file mutations, invalid bytes and cancellation during download cannot activate incoming state", async () => {
+  for (const fault of ["local-inventory", "invalid-bytes", "cancel"]) {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "download-boundaries-"));
+    const fake = fakeDrive(); let hook: ReturnType<typeof mock.method> | undefined;
+    try {
+      const first = new WorkspaceStore(path.join(root, "first")), second = new WorkspaceStore(path.join(root, "second"));
+      const original = data(); await first.save(original);
+      const a = new DriveSync(account, () => first), b = new DriveSync(account, () => second);
+      await a.sync(); await b.sync();
+      await fs.mkdir(path.join(first.root, "generated"), { recursive: true });
+      await fs.writeFile(path.join(first.root, "generated/new.docx"), "remote");
+      await a.sync();
+      const before = await second.pointer(), bytes = DriveFiles.prototype.bytes;
+      let injected = false, paused: Promise<void> | undefined;
+      hook = mock.method(DriveFiles.prototype, "bytes", async function(this: DriveFiles, id: string) {
+        if (!injected && fake.entries.get(id)?.meta.name.startsWith("new.")) {
+          injected = true;
+          if (fault === "invalid-bytes") return Buffer.from("corrupt reference");
+          if (fault === "cancel") paused = b.pause();
+          if (fault === "local-inventory") {
+            await fs.mkdir(path.join(second.root, "imports/local"), { recursive: true });
+            await fs.writeFile(path.join(second.root, "imports/local/questions.csv"), "student work");
+          }
+        }
+        return bytes.call(this, id);
+      });
+      await assert.rejects(b.sync());
+      await paused;
+      assert.ok(injected); assert.deepEqual(await second.pointer(), before);
+      assert.deepEqual(await second.load(), original);
+      await assert.rejects(fs.stat(path.join(second.root, "generated/new.docx")), { code: "ENOENT" });
+      if (fault === "local-inventory") assert.equal(await fs.readFile(path.join(second.root, "imports/local/questions.csv"), "utf8"), "student work");
+    } finally { hook?.mock.restore(); fake.restore(); await fs.rm(root, { recursive: true, force: true }); }
+  }
+});
