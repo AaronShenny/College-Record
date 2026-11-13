@@ -50,7 +50,28 @@ export class WorkspaceStore {
     await this.queue;
     const pointer = await this.pointer();
     if (!pointer) return { workspace: emptyWorkspace(), revisionId: null };
-    return this.withSnapshot(async root => ({ workspace: await this.readSnapshot(root), revisionId: path.basename(root) }), false);
+    return this.withSnapshot(async root => {
+      const workspace = await this.readSnapshot(root);
+      const revisionId = path.basename(root);
+      // Backfill a disposable local index for caches created by older versions,
+      // without creating a new data revision or changing pending Drive commits.
+      const filename = path.join(root, DASHBOARD_SUMMARY_FILE);
+      const accountKey = /^account-([a-f0-9]{32})$/.exec(path.basename(this.root))?.[1] ?? null;
+      try {
+        const contents = JSON.stringify(deriveDashboardSummary(workspace, revisionId, accountKey));
+        if (Buffer.byteLength(contents) <= MAX_SUMMARY_BYTES) {
+          await fs.mkdir(path.dirname(filename), { recursive: true });
+          const temporary = `${filename}.${randomUUID()}.tmp`;
+          try { await writeDurable(temporary, contents); await fs.rename(temporary, filename); }
+          finally { await fs.rm(temporary, { force: true }); }
+        }
+      } catch {
+        // The full records have been validated. A failed derived-cache write
+        // must not turn them into an empty or unusable authoritative workspace.
+        console.warn("The optional dashboard cache could not be refreshed; full records remain available.");
+      }
+      return { workspace, revisionId };
+    }, false);
   }
   private async readSnapshot(root: string): Promise<Workspace> {
     try {

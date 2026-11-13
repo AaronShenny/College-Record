@@ -21,3 +21,27 @@ substituted.
 
 Drive remains the authoritative store. Moving source files does not migrate,
 remove or change any installed account, credential, pending edit or generated file.
+
+## Complete Tauri integration and trial installer
+
+The actual React app now has a separate native Tauri entrypoint, restricted
+command bridge, Windows credential/dialog/clipboard/file adapters and bundled
+Node/Python workflow integration. It is **not yet an accepted replacement release**.
+
+- `pnpm --filter @workspace/record-maker run tauri:build`: portable renderer and service build.
+- `pnpm --filter @workspace/record-maker run tauri:package`: Windows x64 installer build using Node 22.
+- GitHub Actions: **Tauri desktop Windows trial installer**.
+- Build, verification, signing and recovery checklist: `tauri/WINDOWS-VERIFICATION.md`.
+
+The trial installs as **College Record Maker Tauri**, separately from Electron.
+Do not run both hosts together. Existing local caches require explicit copying
+consent and verification. The originals remain intact. Credentials may require
+same-account recovery; an old encrypted credential is never silently discarded.
+
+The cached dashboard uses a separate, read-only account/revision-bound summary.
+Source/images and complete editable records load after its real paint. Summary
+objects never enter autosave, generation or sync.
+
+Windows installation/Office checks, signed-update owner configuration, and
+repeated affected-PC cold/warm measurements remain release gates. Neither a
+portable build nor a successful foundation CI run proves those gates passed.

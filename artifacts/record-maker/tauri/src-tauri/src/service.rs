@@ -254,6 +254,7 @@ mod tests {
             directory: root.clone(), resources, version: "0.2.0".into(), packaged: false,
         };
         let native: Arc<NativeHandler> = Arc::new(move |action, payload| {
+            if action == "exclusive-host" { return Ok(Value::Null); }
             if action.starts_with("vault-") { return crate::vault::callback(action, payload); }
             if action == "open-dialog" { return Ok(json!({"canceled":false,"filePaths":[registration]})); }
             Err("No other native callback is expected for this fixture.".into())

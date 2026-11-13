@@ -136,6 +136,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (!latest.current) return;
     const next = fn(latest.current);
     if (next === latest.current) return;
+    void window.recordMakerEditState?.(true).catch(() => undefined);
     latest.current = next;
     rev.current += 1;
     setWorkspace(next);
@@ -161,6 +162,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     try {
       const w = await bridge.loadWorkspace();
       const info = await bridge.getRuntime();
+      // This projection is only for the first account-bound startup. Never show
+      // it again during logout, account transitions or later reloads.
+      window.recordMakerStartup = undefined;
       latest.current = w; rev.current = 0; savedRev.current = 0; setLocalRevision(info.workspaceRevision ?? null);
       setRuntime(info); setRuntimeError(null);
       setWorkspace(w); setStatus({ kind: "idle" });
@@ -204,6 +208,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       .finally(() => { genRunning.current = false; setDocsVersion(v => v + 1); });
   }, [notify]);
   const isClean = (save.kind === "idle" || save.kind === "saved") && drafts.size === 0;
+  useEffect(() => {
+    void window.recordMakerEditState?.(!isClean || gen.state === "running")
+      .catch(() => notify("The desktop close guard could not be updated. Keep this window open until your work is saved.", "error"));
+  }, [isClean, gen.state, notify]);
   // This belongs to the workspace provider, not Settings: sign-in can complete
   // on any route. Never let an account poll discard an unsaved workspace.
   useEffect(() => {
@@ -247,6 +255,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [flush]);
 
   const setDraft = useCallback((key: string, on: boolean) => {
+    if (on) void window.recordMakerEditState?.(true).catch(() => undefined);
     setDrafts(d => {
       if (d.has(key) === on) return d;
       const n = new Set(d); if (on) n.add(key); else n.delete(key); return n;

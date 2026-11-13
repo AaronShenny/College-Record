@@ -51,6 +51,7 @@ const peer = new ServiceProtocol(frame => {
 const platform: NativePlatform = {
   version, packaged: packaged === "true", resources,
   appRoot: path.resolve(__dirname, "../.."),
+  assertExclusive: () => peer.native("exclusive-host", {}),
   vault: {
     available: () => peer.native("vault-available", {}),
     encrypt: async value => Buffer.from(await peer.native("vault-encrypt", { value }), "base64"),

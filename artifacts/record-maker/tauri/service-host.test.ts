@@ -45,7 +45,8 @@ async function start(handshake = true, existingRoot?: string) {
   const lines = new JsonLineFrames((value: any) => {
     if (value.kind === "native") {
       callbacks.push(value.action);
-      if (value.action === "paste-image") write({ protocol: 1, kind: "native-result", id: value.id, ok: true, result: { dataUrl: `data:image/png;base64,${png}` } });
+      if (value.action === "exclusive-host") write({ protocol: 1, kind: "native-result", id: value.id, ok: true, result: null });
+      else if (value.action === "paste-image") write({ protocol: 1, kind: "native-result", id: value.id, ok: true, result: { dataUrl: `data:image/png;base64,${png}` } });
       else write({ protocol: 1, kind: "native-result", id: value.id, ok: false, error: "Unexpected fixture-native operation." });
       return;
     }

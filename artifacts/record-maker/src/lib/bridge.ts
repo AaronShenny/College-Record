@@ -60,5 +60,6 @@ const unavailableBridge: DesktopBridge = {
   getRuntime: missingBridge, loadWorkspace: missingBridge, saveWorkspace: missingBridge,
   importSource: missingBridge, pasteImage: missingBridge, checkPython: missingBridge, inspectSnapshot: missingBridge,
 };
-const isDesktop = location.protocol === "file:" || navigator.userAgent.includes("Electron/");
+const isDesktop = location.protocol === "file:" || location.protocol === "tauri:" ||
+  location.hostname === "tauri.localhost" || "__TAURI__" in window || navigator.userAgent.includes("Electron/");
 export const bridge: DesktopBridge = window.recordMaker ?? (isDesktop ? unavailableBridge : previewBridge);

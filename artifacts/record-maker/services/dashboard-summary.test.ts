@@ -49,3 +49,19 @@ test("every saved immutable revision gets an account-bound local-only summary be
     assert.ok(!JSON.stringify(manifest).includes("dashboard-summary"));
   } finally { await fs.rm(parent, { recursive: true, force: true }); }
 });
+test("older caches rebuild only derived metadata without changing records, revisions or the pending queue", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "record-old-summary-"));
+  try {
+    const store = new WorkspaceStore(root), workspace = fixture();
+    const receipt = await store.save(workspace);
+    const snapshot = path.join(root, "snapshots", receipt.revisionId);
+    const pointer = await fs.readFile(path.join(root, "current.json"), "utf8");
+    const pending = await fs.readFile(path.join(snapshot, "_local/pending.json"), "utf8");
+    await fs.rm(path.join(snapshot, DASHBOARD_SUMMARY_FILE));
+    assert.deepEqual(await store.loadWithRevision(), { workspace, revisionId: receipt.revisionId });
+    const index = dashboardSummarySchema.parse(JSON.parse(await fs.readFile(path.join(snapshot, DASHBOARD_SUMMARY_FILE), "utf8")));
+    assert.equal(index.revisionId, receipt.revisionId);
+    assert.equal(await fs.readFile(path.join(root, "current.json"), "utf8"), pointer);
+    assert.equal(await fs.readFile(path.join(snapshot, "_local/pending.json"), "utf8"), pending);
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});

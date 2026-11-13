@@ -32,6 +32,7 @@ export class BackgroundClient {
     private child: BackgroundTransport,
     private account: Account,
     private record: (event: string, details?: Record<string, unknown>) => void,
+    private assertExclusive?: () => Promise<void>,
   ) {
     child.on("message", message => void this.receive(message).catch(() => this.fail()));
     child.on("exit", (code: number) => { this.record("background-exit", { exitCode: code }); this.fail(); });
@@ -42,6 +43,7 @@ export class BackgroundClient {
     if (message.type === "token" && typeof message.id === "string") {
       const started = performance.now();
       try {
+        await this.assertExclusive?.();
         const token = await this.account.token();
         this.record("google-token", { ok: true, durationMs: Math.round(performance.now() - started) });
         if (!this.stopped) this.child.postMessage({ type: "token-result", id: message.id, token });

@@ -16,6 +16,7 @@ const ImportPage = lazy(() => import("@/pages/import"));
 import { workspaceAccess } from "@/lib/workspace-access";
 import { syncDrive } from "@/lib/workflow-api";
 import { errMsg } from "@/hooks/use-workspace";
+import { StartupDashboard } from "@/components/startup-dashboard";
 
 function InitialDriveError() {
   const { cloud, reload, refreshCloud } = useStore();
@@ -74,6 +75,9 @@ function Routes() {
     </div>;
   }
   if (access === "sync-error") return <InitialDriveError />;
+  if (!workspace && window.recordMakerStartup?.cache) {
+    return <StartupDashboard boot={window.recordMakerStartup} opening={parts.length > 0} />;
+  }
   if (!workspace || access === "opening") {
     return <div className="crm" aria-busy="true"><div className="app-shell"><aside className="sidebar"><div className="skel" style={{ height: 36 }} /><div className="skel" style={{ height: 160 }} /></aside>
       <main style={{ padding: 36, display: "grid", gap: 16, alignContent: "start" }}><p role="status">{cloud?.connected && (!workspace || workspace.subjects.length === 0) ? "Loading your records from Google Drive…" : access === "opening" ? "Opening your account’s records…" : "Loading your saved records…"}</p><p className="hint">Please wait before creating records. Your Drive has not been confirmed empty. Existing cached records open locally while sync runs in the background.</p><div className="skel" style={{ height: 40, width: 320 }} /><div className="skel" style={{ height: 130 }} /><div className="skel" style={{ height: 260 }} /></main></div></div>;

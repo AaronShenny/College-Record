@@ -48,7 +48,8 @@ export class HostWorkflows {
     const pythonArgs = this.host.packaged ? args : [path.join(this.host.appRoot, "python/worker.py"), ...args];
     const child = this.host.createBackground(root, command, pythonArgs);
     child.on("spawn", () => this.diagnostics.record("background-started"));
-    this.background = new BackgroundClient(child, this.account, (event, details) => this.diagnostics.record(event, details));
+    this.background = new BackgroundClient(child, this.account, (event, details) => this.diagnostics.record(event, details),
+      () => this.host.assertExclusive?.() ?? Promise.resolve());
     this.store = new BackgroundStore(root, this.background);
     this.sync = new BackgroundSync(this.background);
     this.documents = new BackgroundDocuments(this.background);
@@ -111,6 +112,7 @@ export class HostWorkflows {
   get switching() { return this.changing; }
   get canWork() { return !this.host.packaged || !!this.account.identity; }
   async loadWorkspace() {
+    await this.host.assertExclusive?.();
     if (!this.canWork) return { workspace: { schemaVersion: 1 as const, subjects: [] }, revisionId: null };
     // A cached workspace must open even on a slow/offline connection. Only a
     // first download, with no local committed snapshot, needs to wait for Drive.
@@ -128,6 +130,7 @@ export class HostWorkflows {
   }
   async run(action: string, input: Record<string, unknown>) {
     if (!input || typeof input !== "object") throw new Error("Invalid workflow request.");
+    if (!["cloud-status", "export-diagnostics", "check-updates"].includes(action)) await this.host.assertExclusive?.();
     if (!this.canWork && !["cloud-status", "configure-google", "connect-drive", "check-updates", "restart-update", "export-diagnostics"].includes(action)) {
       throw new Error("Sign in with your college Google account before accessing record data.");
     }

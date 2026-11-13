@@ -23,7 +23,7 @@ pub fn allowed_method(method: &str) -> bool {
 }
 
 pub fn allowed_native(action: &str) -> bool {
-    matches!(action, "vault-available" | "vault-encrypt" | "vault-decrypt" |
+    matches!(action, "exclusive-host" | "vault-available" | "vault-encrypt" | "vault-decrypt" |
         "open-oauth" | "open-document" | "open-dialog" | "save-dialog" |
         "message-dialog" | "paste-image" | "updates-initialize" | "updates-check" | "updates-restart")
 }

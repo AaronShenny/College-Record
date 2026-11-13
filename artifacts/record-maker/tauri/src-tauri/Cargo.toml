@@ -10,13 +10,33 @@ serde_json = "1"
 # Keep portable foundation tests compatible with this workspace's Rust 1.88.
 # The Windows Tauri application/toolchain will require Rust 1.90 or newer.
 uuid = { version = "=1.18.1", features = ["v4"] }
+sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
 base64 = "0.22"
+tauri = { version = "2", optional = true }
+tauri-plugin-updater = { version = "2", optional = true }
+rfd = { version = "0.18", optional = true, default-features = false, features = ["common-controls-v6"] }
+arboard = { version = "3", optional = true }
+png = { version = "0.17", optional = true }
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation", "Win32_Security", "Win32_Security_Cryptography",
-  "Win32_System_JobObjects", "Win32_System_Threading"
+  "Win32_System_JobObjects", "Win32_System_Threading", "Win32_System_Diagnostics_ToolHelp",
+  "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"
 ] }
+
+[target.'cfg(windows)'.build-dependencies]
+tauri-build = { version = "2", optional = true }
+
+[features]
+default = []
+desktop = ["dep:tauri", "dep:tauri-build", "dep:rfd", "dep:arboard", "dep:png", "dep:tauri-plugin-updater"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[[bin]]
+name = "college-record-maker"
+path = "src/main.rs"
+required-features = ["desktop"]
 
 [profile.release]
 strip = true

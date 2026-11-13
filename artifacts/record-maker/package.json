@@ -20,6 +20,8 @@
     "legacy:dev": "node legacy/electron/scripts/dev-desktop.mjs",
     "test:legacy": "tsx --test legacy/electron/desktop/*.test.ts",
     "tauri:service:build": "node scripts/build-tauri-service.mjs",
+    "tauri:build": "node scripts/build-tauri-app.mjs --assets-only",
+    "tauri:package": "node scripts/build-tauri-app.mjs",
     "test:native-service": "tsx --test tauri/*.test.ts"
   },
   "devDependencies": {
@@ -60,6 +62,7 @@
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

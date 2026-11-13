@@ -5,6 +5,7 @@ export interface NativePlatform {
   packaged: boolean;
   resources: string;
   appRoot: string;
+  assertExclusive?(): Promise<void>;
   vault: {
     available(): boolean | Promise<boolean>;
     encrypt(value: string): Buffer | Promise<Buffer>;
