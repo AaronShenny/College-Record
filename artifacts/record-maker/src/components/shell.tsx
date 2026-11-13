@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { runSelectorIntent } from "./focus-intent";
 import { AlertTriangle, BookOpen, FileText, Save, Settings, Trash2, X } from "lucide-react";
 import { cloudLabel, useStore } from "@/hooks/use-workspace";
-import { fmtTime, href } from "./kit";
+import { fmtTime, href, BrandMark } from "./kit";
 
 const NAV = [
   { key: "subjects", label: "Subjects", path: "/", icon: BookOpen },
@@ -45,14 +45,14 @@ export function Shell({ active, crumb, children }: { active: string; crumb: Reac
       <n.icon size={16} aria-hidden="true" /><span>{n.label}</span>
     </a>
   ));
-  const cloudProblem = cloudError ? `Drive status could not be read: ${cloudError}` : cloud?.connected && cloud.state === "error" ? `Drive sync error${cloud.message ? ": " + cloud.message : "."} Your work is still saved on this computer.` : null;
+  const cloudProblem = cloudError ? `Drive save/status needs attention: ${cloudError}` : cloud?.connected && ["error", "conflict"].includes(cloud.state) ? `${cloud.state === "conflict" ? "Drive conflict" : "Drive sync error"}${cloud.message ? ": " + cloud.message : "."} Your work is still saved on this computer.` : null;
   return (
     <div className="crm">
       <div className="app-shell">
         <aside className="sidebar">
-          <a className="brand" href={href("/")} aria-label="College Record Maker subjects" data-testid="link-brand">
-            <span className="brand-mark">R</span>
-            <span className="brand-copy"><span className="brand-name">Record maker</span><span className="brand-sub">College lab records</span></span>
+          <a className="brand" href={href("/")} aria-label="Recordly subjects" data-testid="link-brand">
+            <BrandMark />
+            <span className="brand-copy"><span className="brand-name">Recordly</span><span className="brand-sub">by extapano</span></span>
           </a>
           <nav className="nav-list" aria-label="Main navigation">{items}</nav>
           <div className="sidebar-bottom">

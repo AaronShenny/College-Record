@@ -41,6 +41,10 @@ test("real renderer bridge defers service calls until the cached dashboard paint
     await fake.recordMakerEditState!(false);
     const second = calls.at(-1)!.payload as { sequence: number };
     assert.ok(second.sequence > first.sequence, "Late editing-state completions must not unlock newer unsaved work.");
+    await fake.recordMakerCancelClose!();
+    assert.deepEqual(calls.at(-1), { method: "cancel-close", payload: null });
+    await fake.recordMakerFinishClose!();
+    assert.deepEqual(calls.at(-1), { method: "close-commit", payload: null });
     assert.equal("vaultDecrypt" in fake.recordMaker!, false);
   } finally {
     globalThis.setInterval = interval; globalThis.setTimeout = timeout;
@@ -55,5 +59,27 @@ test("a missing native bridge fails visibly rather than creating browser persist
   try { await assert.rejects(installTauriBridge(), /No browser storage was opened/); }
   finally {
     if (descriptor) Object.defineProperty(globalThis, "window", descriptor); else Reflect.deleteProperty(globalThis, "window");
+  }
+});
+
+test("failed boot retains native close access without mounting a workspace or opening browser storage", async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const calls: string[] = [];
+  const fake = { __TAURI__: { core: { async invoke(_command: string, args: { method: string }) {
+    calls.push(args.method);
+    if (args.method === "boot") throw new Error("Onboarding failed.");
+    if (args.method === "close-commit") return null;
+    throw new Error("No service should start after failed bootstrap.");
+  } } } } as unknown as Window;
+  Object.defineProperty(globalThis, "window", { value: fake, configurable: true });
+  try {
+    await assert.rejects(installTauriBridge(), /Onboarding failed/);
+    assert.equal(fake.recordMaker, undefined);
+    assert.equal(fake.recordMakerStartup, undefined);
+    await fake.recordMakerFinishClose!();
+    assert.deepEqual(calls, ["boot", "close-commit"]);
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, "window", descriptor);
+    else Reflect.deleteProperty(globalThis, "window");
   }
 });

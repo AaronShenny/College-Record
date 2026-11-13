@@ -13,6 +13,9 @@ declare global {
     recordMakerStartup?: NativeBoot;
     recordMakerEditState?: (dirty: boolean) => Promise<void>;
     recordMakerSummaryPainted?: () => void;
+    recordMakerCloseRequested?: boolean;
+    recordMakerFinishClose?: () => Promise<void>;
+    recordMakerCancelClose?: () => Promise<void>;
   }
 }
 
@@ -21,6 +24,8 @@ export async function installTauriBridge(): Promise<void> {
   const invoke = window.__TAURI__?.core.invoke;
   if (!invoke) throw new Error("The native security bridge did not load. No browser storage was opened.");
   const request = <T = any>(method: string, payload: unknown = null) => invoke<T>("desktop_request", { method, payload });
+  window.recordMakerFinishClose = () => request<void>("close-commit");
+  window.recordMakerCancelClose = () => request<void>("cancel-close");
   const boot = await request<NativeBoot>("boot");
   if (boot.cache) boot.cache.summary = dashboardSummarySchema.parse(boot.cache.summary);
   window.recordMakerStartup = boot;
@@ -40,8 +45,9 @@ export async function installTauriBridge(): Promise<void> {
     await serviceGate;
     return request<T>(method, payload);
   };
+  let rendererReady = false;
   const bridge: DesktopBridge = {
-    reportReady: screen => call("renderer-ready", screen),
+    reportReady: screen => { rendererReady = true; return call("renderer-ready", screen); },
     getRuntime: () => call("runtime"),
     loadWorkspace: () => call("load"),
     saveWorkspace: workspace => call("save", workspace),
@@ -57,6 +63,9 @@ export async function installTauriBridge(): Promise<void> {
   // Privacy-preserving action history, using the same allowlist as Electron.
   let lastEdit = 0;
   const report = (kind: string, details: Record<string, unknown> = {}) => {
+    // A bootstrap-error page must not start Node later via an idle heartbeat
+    // or a Retry click when the normal workspace close listener never mounted.
+    if (!rendererReady) return;
     void call("diagnostic", { kind, page: diagnosticPage(location.hash), ...details }).catch(() => undefined);
   };
   for (const kind of ["click", "change", "input", "paste", "submit"] as const) {

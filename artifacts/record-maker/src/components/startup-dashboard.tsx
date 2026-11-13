@@ -1,5 +1,5 @@
 import type { NativeBoot } from "@/lib/tauri-bridge";
-import { href } from "./kit";
+import { href, BrandMark } from "./kit";
 import { useEffect } from "react";
 
 /** A distinct read-only projection. It never becomes Workspace or autosave input. */
@@ -16,7 +16,7 @@ export function StartupDashboard({ boot, opening }: { boot: NativeBoot; opening:
     .sort((a, b) => b.program.updatedAt.localeCompare(a.program.updatedAt))[0];
   return <div className="crm"><div className="app-shell">
     <aside className="sidebar">
-      <a className="brand" href={href("/")}><span className="brand-mark">R</span><span className="brand-copy"><span className="brand-name">Record maker</span><span className="brand-sub">College lab records</span></span></a>
+      <a className="brand" href={href("/")}><BrandMark /><span className="brand-copy"><span className="brand-name">Recordly</span><span className="brand-sub">by extapano</span></span></a>
       <nav className="nav-list" aria-label="Main navigation">
         {[["Subjects", "/"], ["Documents", "/documents"], ["Settings", "/settings"], ["Trash", "/trash"]].map(([label, path]) =>
           <a className={`nav-item ${path === "/" ? "active" : ""}`} href={href(path!)} key={label}>{label}</a>)}

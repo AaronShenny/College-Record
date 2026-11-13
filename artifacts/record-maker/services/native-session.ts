@@ -26,6 +26,7 @@ export class NativeSession {
       requiresSignIn: this.platform.packaged, workspaceAccount: this.rendererAccount,
       workspaceRevision: this.rendererRevision,
       savedGenerationReservations: true,
+      closeSync: true,
     };
     if (method === "load") {
       const store = services.store, started = performance.now();
@@ -73,6 +74,11 @@ export class NativeSession {
           this.rendererAccount !== (services.account.identity?.email ?? null))) {
         throw new Error("The generation account changed. Reload before generating.");
       }
+      if (["sync-drive", "conflict-review", "resolve-conflict"].includes(action) &&
+          (services.switching || (this.rendererRoot !== null &&
+          (this.rendererRoot !== services.root || this.rendererAccount !== (services.account.identity?.email ?? null))))) {
+        throw new Error("The account changed. Reload the correct workspace before synchronizing.");
+      }
       return services.run(action, values);
     }
     if (method === "renderer-ready") {
@@ -89,6 +95,7 @@ export class NativeSession {
       return null;
     }
     if (method === "shutdown") { await services.close(); return null; }
+    if (method === "close-check") return services.prepareClose();
     if (method === "python-health") {
       if (services.documents.busy) throw new Error("The Python helper is processing documents. Retry the health check after generation finishes.");
       return services.worker.health();

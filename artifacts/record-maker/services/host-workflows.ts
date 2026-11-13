@@ -7,6 +7,7 @@ import { CredentialUnlockError, GoogleAccount } from "./google-auth";
 import { BackgroundClient, BackgroundStore, BackgroundSync, BackgroundDocuments, BackgroundPython, cloudStatusWithActivity } from "./background-client";
 import { parseDesktopRegistration } from "./google-registration.mjs";
 import { PerformanceLog } from "./performance-log";
+import { parseConfiguration, MAX_CONFIGURATION_BYTES } from "../src/lib/subject-configuration";
 
 export class HostWorkflows {
   root: string;
@@ -93,7 +94,7 @@ export class HostWorkflows {
     if (this.account.identity && !this.sync.busy && !this.documents.busy && !this.changing) this.startupSync = this.sync.sync().catch(() => undefined);
     this.syncTimer = setInterval(() => {
       if (this.account.identity && !this.sync.busy && !this.changing && !this.documents.busy) void this.sync.sync().catch(() => undefined);
-    }, 60_000).unref();
+    }, 180_000).unref();
     this.updateTimer = setTimeout(() => {
       const started = performance.now();
       void this.updates.initialize()
@@ -105,6 +106,19 @@ export class HostWorkflows {
     clearInterval(this.syncTimer); clearTimeout(this.updateTimer);
     await this.background?.close();
     await this.diagnostics.flush();
+  }
+  /** Native host has fenced new operations before calling this final check. */
+  async prepareClose() {
+    if (this.changing || this.documents.busy) throw new Error("Document or account work is still running. Return to editing, wait, then retry closing.");
+    if (!this.account.identity) {
+      if (this.host.packaged) return { safe: true };
+      return { safe: true }; // browser/development drafts have no Drive account
+    }
+    await this.sync.sync(); // coalesces any timer/manual upload
+    await this.sync.invalidateStatus();
+    const status = await this.sync.status();
+    if (status.pending || status.busy || status.state !== "synced") throw new Error("Drive has not acknowledged all changes. Keep Recordly open and retry when connected.");
+    return { safe: true };
   }
   private canChange() {
     if (this.changing || this.sync.busy || this.documents.busy) throw new Error("Wait for processing and synchronization to finish before changing accounts or restarting.");
@@ -177,8 +191,34 @@ export class HostWorkflows {
       } finally { this.changing = false; }
     }
     if (action === "sync-drive") {
-      if (this.changing || this.documents.busy) throw new Error("Wait for the current account/document operation before syncing.");
+      if (this.changing) throw new Error("Wait for the current account operation before syncing.");
       await this.store.load(); return this.sync.sync();
+    }
+    if (action === "conflict-review" || action === "resolve-conflict") {
+      this.canChange();
+      this.changing = true;
+      try {
+        if (action === "conflict-review") return await this.sync.review();
+        return await this.sync.resolve(z.string().uuid().parse(input.token), z.enum(["local", "drive"]).parse(input.choice));
+      } finally { this.changing = false; }
+    }
+    if (action === "export-configuration") {
+      const config = parseConfiguration(JSON.stringify(input.configuration));
+      const chosen = await this.host.saveDialog({ defaultPath: "Recordly-subject.recordly.json", filters: [{ name: "Recordly subject configuration", extensions: ["json"] }] });
+      if (!chosen.canceled && chosen.filePath) await fs.writeFile(chosen.filePath, JSON.stringify(config, null, 2), { mode: 0o600 });
+      return { saved: !chosen.canceled };
+    }
+    if (action === "import-configuration") {
+      const chosen = await this.host.openDialog({ title: "Import Recordly subject configuration", properties: ["openFile"], filters: [{ name: "Recordly configuration", extensions: ["json"] }] });
+      if (chosen.canceled || !chosen.filePaths[0]) return null;
+      const handle = await fs.open(chosen.filePaths[0], "r");
+      try {
+        const size = (await handle.stat()).size;
+        if (size > MAX_CONFIGURATION_BYTES) throw new Error("Configuration exceeds 24 MB.");
+        const bytes = Buffer.alloc(size + 1), read = await handle.read(bytes);
+        if (read.bytesRead !== size) throw new Error("Configuration changed during import. Select it again.");
+        return parseConfiguration(bytes.subarray(0, size).toString("utf8"));
+      } finally { await handle.close(); }
     }
     if (action === "logout-cleanup") {
       this.canChange();
@@ -228,7 +268,11 @@ export class HostWorkflows {
       this.changing = true;
       try {
         await this.store.load();
-        await this.sync.pause(); // Pending uploads remain queued; no forced full sync.
+        await this.sync.sync();
+        await this.sync.invalidateStatus();
+        const status = await this.sync.status();
+        if (status.pending || status.state !== "synced") throw new Error("Save to Drive successfully before restarting for an update.");
+        await this.sync.pause();
         return await this.updates.restart();
       } finally { this.changing = false; }
     }

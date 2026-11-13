@@ -460,3 +460,19 @@
 .crm .settings-connection-details>summary{cursor:pointer}
 .crm .settings-connection-details>.btn{margin-top:10px}
 @media(max-width:850px){.crm .settings-account-grid{grid-template-columns:1fr}.crm .settings-update-head{align-items:flex-start;flex-wrap:wrap}}
+
+/* Recordly branding */
+.crm .brand-logo { flex-shrink:0; width:34px; height:34px; border-radius:9px; object-fit:contain; display:block; }
+.crm .settings-footer { margin-top:28px; padding:18px 4px 6px; border-top:1px solid var(--line, rgba(0,0,0,.1)); display:grid; gap:8px; }
+.crm .settings-footer-brand { display:flex; align-items:center; gap:10px; font-family:'Newsreader',serif; font-size:15px; font-weight:600; }
+.crm .settings-footer-brand .brand-logo { width:24px; height:24px; border-radius:6px; }
+.crm .settings-disclaimer { margin:0; font-size:10px; letter-spacing:.06em; color:var(--muted); line-height:1.5; }
+/* Index setup and configuration */
+.crm .index-col-row { display:grid; grid-template-columns:28px minmax(0,1fr) minmax(0,1fr) auto; gap:6px; align-items:center; margin-bottom:6px; }
+.crm .index-col-row .list-no { font-size:11px; color:var(--muted); }
+.crm .config-review { display:grid; gap:4px; font-size:13px; padding:10px 12px; border:1px solid var(--line, rgba(0,0,0,.1)); border-radius:8px; }
+.crm .config-review span { display:flex; justify-content:space-between; gap:12px; }
+.crm .choice-list { display:grid; gap:6px; font-size:13px; }
+.crm .choice-list label { display:flex; gap:8px; align-items:flex-start; }
+.crm .index-manual { margin-top:12px; }
+@media (max-width:767px){ .crm .index-col-row { grid-template-columns:24px 1fr; } }

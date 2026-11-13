@@ -18,6 +18,7 @@ from docx.oxml.ns import qn
 from docx.enum.section import WD_SECTION_START
 from docxcompose.composer import Composer
 from templates import decode, inspect, render, validate
+from index_table import prepend_index
 
 EXTRACTOR_NAME = "pdf_to_qns_1793905163999.py"
 
@@ -151,6 +152,8 @@ def generate(payload):
             try:
                 docs = [render(subject, p) for p in group]
                 doc = combine(docs) if len(docs) > 1 else docs[0]
+                if payload["mode"] == "combined":
+                    doc = prepend_index(doc, subject, group)
                 record, filename = make_record(doc, subject, group, temp, payload["mode"] == "combined")
                 result["documents"].append(record)
                 if payload.get("pdf"):

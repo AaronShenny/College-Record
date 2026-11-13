@@ -243,11 +243,11 @@ Support working offline and syncing to Drive later.
 
 **How to apply:** Previously downloaded records can be edited offline and documents can be generated when required resources are cached. Queue local changes for upload after reconnection and show unsynced status. First sign-in and uncached Drive content require connectivity.
 
-The initial conflict rule was most-recently-saved-wins; conflict handling is now deferred to version 2.
+The initial most-recently-saved-wins rule and later version-two deferral were superseded by the explicit Local-versus-Drive recovery request.
 
-**Why:** The user selected “Use most recently saved version” after the risk of overwriting the other changes was explained.
+**Why:** After encountering conflicts while switching laptops, the user requested options to force Local or Drive to win.
 
-**How to apply:** Follow the later one-active-computer version-one boundary and deferred conflict handling in `drive-storage-design.md`. Do not implement the earlier overwrite rule as an approved final policy.
+**How to apply:** Follow the one-active-computer boundary and confirmed explicit overwrite requirements in `drive-storage-design.md`; never infer automatic latest-wins or concurrent-edit support.
 
 PDF export must use installed Microsoft Word, not LibreOffice.
 

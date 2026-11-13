@@ -38,7 +38,7 @@ pub fn callback(action: &str, payload: Value, root: &Path) -> Result<Value, Stri
             Ok(json!(""))
         }
         "open-dialog" | "save-dialog" => {
-            let mut dialog = rfd::FileDialog::new().set_title(payload["title"].as_str().unwrap_or("College Record Maker"));
+            let mut dialog = rfd::FileDialog::new().set_title(payload["title"].as_str().unwrap_or("Recordly"));
             if let Some(filters) = payload["filters"].as_array() {
                 for filter in filters.iter().take(20) {
                     let extensions: Vec<&str> = filter["extensions"].as_array().map(|v| v.iter().filter_map(Value::as_str).take(30).collect()).unwrap_or_default();
@@ -64,7 +64,7 @@ pub fn callback(action: &str, payload: Value, root: &Path) -> Result<Value, Stri
             let second = buttons[1].as_str().ok_or("Invalid confirmation.")?;
             let description = format!("{}\n\n{}", payload["message"].as_str().unwrap_or(""), payload["detail"].as_str().unwrap_or(""));
             // Destructive recovery remains the second, explicitly selected button.
-            let selected = message(payload["title"].as_str().unwrap_or("College Record Maker"), &description, second, first);
+            let selected = message(payload["title"].as_str().unwrap_or("Recordly"), &description, second, first);
             Ok(json!({"response":if selected {1} else {0}}))
         }
         "paste-image" => {

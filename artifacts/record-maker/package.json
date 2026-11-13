@@ -1,8 +1,8 @@
 {
   "name": "@workspace/record-maker",
-  "version": "0.1.7",
-  "description": "Windows college record maker — local desktop foundation",
-  "author": "College Record Maker contributors",
+  "version": "0.3.0",
+  "description": "Recordly — independent Windows college record preparation",
+  "author": "extapano",
   "main": "dist/desktop/main.cjs",
   "private": true,
   "type": "module",

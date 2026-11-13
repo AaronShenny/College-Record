@@ -20,6 +20,12 @@ switching storage in an installed application could strand a student's work.
 browser-only checks from native verification, and do not present browser tests
 as evidence that a Windows installer, clipboard, Word automation, or Drive works.
 
+A renderer-dependent close guard also needs a native pre-workspace failure path.
+
+**Why:** Bootstrap can fail before the renderer installs its close listener. Preventing every native close event in that state traps the error window and forces process termination.
+
+**How to apply:** A pre-workspace exit must drain bootstrap work and preserve existing cache files without starting a service merely to close. Once a service opens, keep the ordinary local-save/Drive-acknowledgment requirement; never treat a renderer failure as permission to discard pending work.
+
 Inspect the installed Electron types when extending native APIs, rather than
 assuming older examples remain valid.
 

@@ -6,7 +6,7 @@ export const MAX_FRAME_BYTES = 280 * 1024 * 1024;
 const id = z.string().uuid();
 const request = z.object({
   protocol: z.literal(SERVICE_PROTOCOL), kind: z.literal("request"), id,
-  method: z.enum(["runtime", "load", "save", "workflow", "import-source", "paste-image", "python-health", "inspect", "renderer-ready", "diagnostic", "shutdown"]),
+  method: z.enum(["runtime", "load", "save", "workflow", "import-source", "paste-image", "python-health", "inspect", "renderer-ready", "diagnostic", "shutdown", "close-check"]),
   payload: z.unknown(),
 }).strict();
 const nativeResult = z.object({

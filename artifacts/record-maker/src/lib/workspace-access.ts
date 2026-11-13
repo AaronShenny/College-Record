@@ -7,6 +7,7 @@ export function workspaceAccess(runtime: RuntimeInfo | null, cloud: CloudStatus 
   if ((runtime as RuntimeInfo & { requiresSignIn?: boolean }).requiresSignIn && !cloud?.connected) return "sign-in";
   if (cloud?.connected && (cloud.switching || runtime.workspaceAccount !== cloud.account?.email)) return "opening";
   if (cloud?.connected && workspace?.subjects.length === 0) {
+    if (cloud.state === "conflict") return "ready"; // Settings must remain reachable to review both copies.
     // An empty local cache is not evidence that the student's Drive is empty.
     // Also cover the handoff between a completed download and renderer reload.
     if (cloud.busy || cloud.state === "syncing") return "opening";

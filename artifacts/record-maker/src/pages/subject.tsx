@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { takeIntent } from "@/components/focus-intent";
-import { ArrowLeft, FileInput, FileText, LayoutTemplate, Pencil, Plus, Settings2, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, FileInput, Upload, FileText, LayoutTemplate, Pencil, Plus, Settings2, Trash2 } from "lucide-react";
 import { Shell } from "@/components/shell";
 import { EmptyState, Modal, fmtTime, go, href } from "@/components/kit";
 import { ConfirmDialog, ProgramDialog, SubjectDialog } from "@/components/dialogs";
 import { GeneratePanel } from "@/components/generate-panel";
+import { ExportConfigDialog, ImportConfigDialog } from "@/components/subject-config";
 import { activePrograms, mapSubject, nowIso, pad, programState, useStore } from "@/hooks/use-workspace";
 
 export default function SubjectPage({ id }: { id: string }) {
@@ -12,6 +13,7 @@ export default function SubjectPage({ id }: { id: string }) {
   const subject = workspace!.subjects.find(s => s.id === id);
   const [edit, setEdit] = useState(false); const [add, setAdd] = useState(false); const [settings, setSettings] = useState(false);
   const [gen, setGen] = useState(false);
+  const [exportCfg, setExportCfg] = useState(false); const [importCfg, setImportCfg] = useState(false);
   const [trashSubject, setTrashSubject] = useState(false); const [trashProg, setTrashProg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,7 +49,7 @@ export default function SubjectPage({ id }: { id: string }) {
           <nav className="setup-links" aria-label="Subject setup">
             <a className="setup-link" href={href(`/template/${subject.id}`)} data-testid="link-template"><LayoutTemplate size={15} /><span><b>Template &amp; mapping</b><small>{subject.template ? (subject.template.reviewed ? "Reviewed" : "Needs review") : "Not uploaded"}</small></span></a>
             <a className="setup-link" href={href(`/import/${subject.id}`)} data-testid="link-import"><FileInput size={15} /><span><b>Import</b><small>Questions &amp; code</small></span></a>
-            <button className="setup-link" onClick={() => setSettings(true)} data-testid="button-subject-settings"><Settings2 size={15} /><span><b>Subject settings</b><small>Rename, Trash</small></span></button>
+            <button className="setup-link" onClick={() => setSettings(true)} data-testid="button-subject-settings"><Settings2 size={15} /><span><b>Subject settings</b><small>Rename, configuration, Trash</small></span></button>
           </nav>
         </div>
 
@@ -85,8 +87,12 @@ export default function SubjectPage({ id }: { id: string }) {
       <Modal open={settings} onClose={() => setSettings(false)} title="Subject settings">
         <p className="hint" style={{ margin: 0 }}>{subject.name} · Semester {subject.semester}{subject.courseCode ? " · " + subject.courseCode : ""}</p>
         <button className="btn" onClick={() => { setSettings(false); setEdit(true); }} data-testid="button-rename-subject"><Pencil size={13} /> Rename or edit details and subject values</button>
+        <button className="btn" onClick={() => { setSettings(false); setExportCfg(true); }} data-testid="button-export-config"><Download size={13} /> Export configuration</button>
+        <button className="btn" onClick={() => { setSettings(false); setImportCfg(true); }} data-testid="button-import-config"><Upload size={13} /> Import configuration</button>
         <button className="btn danger" onClick={() => { setSettings(false); setTrashSubject(true); }} data-testid="button-trash-subject"><Trash2 size={13} /> Move subject to Trash</button>
       </Modal>
+      <ExportConfigDialog open={exportCfg} onClose={() => setExportCfg(false)} subject={subject} />
+      <ImportConfigDialog open={importCfg} onClose={() => setImportCfg(false)} subject={subject} />
       <SubjectDialog open={edit} onClose={() => setEdit(false)} subject={subject} />
       <ProgramDialog open={add} onClose={() => setAdd(false)} subject={subject} />
       <ConfirmDialog open={trashSubject} onClose={() => setTrashSubject(false)} title="Move subject to Trash?" confirmLabel="Move to Trash"

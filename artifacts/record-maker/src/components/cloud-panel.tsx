@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, FileKey, LogIn, LogOut, RefreshCw, RotateCcw } from "lucide-react";
+import { AlertTriangle, GitCompare, FileKey, LogIn, LogOut, RefreshCw, RotateCcw } from "lucide-react";
 import { Modal, fmtTime } from "./kit";
-import { checkUpdates, configureGoogle, connectDrive, logoutCleanup, restartForUpdate, syncDrive, type CloudStatus } from "@/lib/workflow-api";
+import { checkUpdates, configureGoogle, connectDrive, logoutCleanup, restartForUpdate, syncDrive, type ConflictReview } from "@/lib/workflow-api";
 import { cloudLabel, errMsg, useStore } from "@/hooks/use-workspace";
 
 export function CloudPanel() {
-  const { runtime, reload, notify, cloud: status, cloudError, refreshCloud, isClean: clean } = useStore();
+  const { runtime, reload, notify, cloud: status, cloudError, refreshCloud, isClean: clean, syncNow, reviewConflict, resolveConflict } = useStore();
+  const [review, setReview] = useState<ConflictReview | null>(null);
+  const [pick, setPick] = useState<"local" | "drive" | null>(null);
+  const [conflictAck, setConflictAck] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -13,7 +16,7 @@ export function CloudPanel() {
   const cleanRef = useRef(clean); cleanRef.current = clean;
   const desktop = runtime?.mode === "desktop";
 
-  const run = async (key: string, fn: () => Promise<CloudStatus>, ok?: string, reloadAfter = false) => {
+  const run = async (key: string, fn: () => Promise<unknown>, ok?: string, reloadAfter = false) => {
     setBusy(key); setErr(null);
     try {
       await fn(); await refreshCloud(); if (ok) notify(ok);
@@ -54,7 +57,7 @@ export function CloudPanel() {
         <section className="panel settings-sync-card" aria-labelledby="settings-drive-heading">
           <div className="settings-sync-head">
             <div><span className="kicker">Google Drive</span><h2 id="settings-drive-heading" data-testid="status-cloud">{status ? cloudLabel(status).text : "Checking…"}</h2></div>
-            <button className="btn primary" disabled={!desktop || !status?.connected || cloudBusy || !clean} onClick={() => void run("sync", syncDrive, "Sync finished.", true)} data-testid="button-sync-drive"><RefreshCw size={13} /> {busy === "sync" || status?.busy ? "Syncing…" : "Sync now"}</button>
+            <button className="btn primary" disabled={!desktop || !status?.connected || cloudBusy || !clean} onClick={() => void run("sync", syncNow, "Sync finished.", true)} data-testid="button-sync-drive"><RefreshCw size={13} /> {busy === "sync" || status?.busy ? "Syncing…" : "Sync now"}</button>
           </div>
           <div className="settings-sync-summary">
             <div><b>On this PC</b><small>{!clean ? "Unsaved changes" : !status ? "Checking…" : status.pending ? "Changes waiting to sync" : "Saved locally"}</small></div>
@@ -64,9 +67,30 @@ export function CloudPanel() {
           {!desktop && <p className="hint settings-last-sync">Google sign-in is available in the installed desktop app.</p>}
         </section>
       </div>
+      {status?.state === "conflict" && <div className="notice red" role="alert" style={{ marginTop: 10 }} data-testid="notice-conflict"><AlertTriangle size={14} /><span style={{ flex: 1 }}><b>This PC and Drive both changed.</b> Nothing is overwritten until you choose which workspace to keep.</span>
+        <button className="btn small" disabled={!!busy} onClick={async () => { setBusy("review"); setErr(null); try { setReview(await reviewConflict()); setPick(null); setConflictAck(false); } catch (e) { setErr(errMsg(e)); } finally { setBusy(null); } }} data-testid="button-review-conflict"><GitCompare size={13} /> {busy === "review" ? "Loading…" : "Review conflict"}</button></div>}
       {status?.state === "error" && status.message && <div className="notice red" role="alert" style={{ marginTop: 10 }}><AlertTriangle size={14} /><span>{status.message}</span></div>}
       {(err || cloudError) && <div className="notice red" role="alert" style={{ marginTop: 10 }}><AlertTriangle size={14} /><span>{err || cloudError}</span></div>}
       {!clean && <p className="hint">Save or fix your edits before connecting, syncing or signing out, so they stay with the right account.</p>}
+      <Modal open={!!review} onClose={() => { if (!busy) setReview(null); }} title="Resolve sync conflict"
+        footer={<><button className="btn" autoFocus disabled={!!busy} onClick={() => setReview(null)} data-testid="button-cancel-conflict">Cancel</button>
+          <button className="btn danger" disabled={!pick || !conflictAck || !!busy} data-testid="button-confirm-conflict" onClick={async () => {
+            if (!review || !pick) return; setBusy("resolve"); setErr(null);
+            try { await resolveConflict(review.token, pick); await refreshCloud(); setReview(null); notify(pick === "local" ? "Drive replaced with this PC's workspace." : "This PC replaced with the Drive workspace."); if (pick === "drive" && cleanRef.current) reload(); }
+            catch (e) { setErr(errMsg(e)); } finally { setBusy(null); }
+          }}>{busy === "resolve" ? "Replacing…" : pick === "drive" ? "Replace this PC with Drive" : pick === "local" ? "Replace Drive with this PC" : "Choose a side"}</button></>}>
+        {review && <div style={{ fontSize: 13, display: "grid", gap: 10 }}>
+          <p style={{ margin: 0 }}>The whole workspace for <b>{review.account}</b> is replaced by one side. Subjects are not merged.</p>
+          <div className="choice-list">
+            <label><input type="radio" name="conflict-side" checked={pick === "local"} onChange={() => { setPick("local"); setConflictAck(false); }} data-testid="radio-conflict-local" />
+              <span><b>Keep this PC</b> · {review.localSubjects} subject(s){review.localSavedAt ? `, saved ${fmtTime(review.localSavedAt)}` : ""}<br /><small className="muted">The Drive copy ({review.remoteSubjects} subject(s)) is overwritten and its changes are lost.</small></span></label>
+            <label><input type="radio" name="conflict-side" checked={pick === "drive"} onChange={() => { setPick("drive"); setConflictAck(false); }} data-testid="radio-conflict-drive" />
+              <span><b>Keep Drive</b> · {review.remoteSubjects} subject(s){review.remoteSavedAt ? `, saved ${fmtTime(review.remoteSavedAt)}` : ""}<br /><small className="muted">This PC's workspace ({review.localSubjects} subject(s)) is overwritten and its changes are lost.</small></span></label>
+          </div>
+          {pick && <label className="required-toggle"><input type="checkbox" className="check" checked={conflictAck} onChange={e => setConflictAck(e.target.checked)} data-testid="check-conflict-ack" /> I understand the {pick === "local" ? "Drive" : "PC"} workspace will be replaced</label>}
+          {err && <div className="notice red"><AlertTriangle size={14} /><span>{err}</span></div>}
+        </div>}
+      </Modal>
       <Modal open={confirm} onClose={() => { if (!busy) { setConfirm(false); setAck(false); } }} title="Log out and delete local files?"
         footer={<><button className="btn" disabled={!!busy} onClick={() => { setConfirm(false); setAck(false); }}>Cancel</button>
           <button className="btn danger" disabled={!ack || !!busy} onClick={() => void logout()} data-testid="button-confirm-logout">{busy === "logout" ? "Syncing, then removing…" : "Sync, log out and delete"}</button></>}>

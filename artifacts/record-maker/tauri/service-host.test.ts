@@ -83,6 +83,14 @@ test("native owner handshake must precede any service request", async () => {
   await assert.rejects(fs.access(path.join(host.root, "workspaces/local-development/current.json")));
 });
 
+test("native close-check is a validated non-destructive protocol method before shutdown", async () => {
+  const host = await start();
+  try {
+    assert.deepEqual(await host.call("close-check"), { safe: true });
+    assert.deepEqual(await host.call("load"), { schemaVersion: 1, subjects: [] });
+  } finally { await host.stop(); }
+});
+
 test("real service preserves saved drafts across restart and rejects incomplete summary writes", async () => {
   const host = await start();
   try {

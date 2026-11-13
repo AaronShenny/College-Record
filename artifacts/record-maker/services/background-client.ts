@@ -140,12 +140,20 @@ export class BackgroundStore {
 }
 export class BackgroundSync {
   busy = false;
+  private flight?: Promise<CloudStatus>;
   constructor(private client: BackgroundClient) {}
   status() { return this.client.request<CloudStatus>("sync-status"); }
-  async sync() {
-    if (this.busy) throw new Error("A Drive operation is already running.");
+  sync(): Promise<CloudStatus> {
+    if (this.flight) return this.flight;
     this.busy = true;
-    try { return await this.client.request<CloudStatus>("sync-run"); }
+    this.flight = this.client.request<CloudStatus>("sync-run").finally(() => { this.busy = false; this.flight = undefined; });
+    return this.flight;
+  }
+  review() { return this.client.request<import("../src/lib/workflow-api").ConflictReview>("sync-review"); }
+  async resolve(token: string, choice: "local" | "drive") {
+    if (this.busy) throw new Error("Wait for the current synchronization.");
+    this.busy = true;
+    try { return await this.client.request<CloudStatus>("sync-resolve", { token, choice }); }
     finally { this.busy = false; }
   }
   pause() { return this.client.request("sync-pause"); }

@@ -10,6 +10,7 @@ import { withTimeout } from "@/lib/with-timeout";
 import { sourceNameError as nameError } from "@/lib/source-filename";
 import type { OutputItem, Program, SourceFile, Subject } from "@/lib/contracts";
 import { FieldValue, setValue } from "@/components/field-values";
+import { mappingsForTemplate } from "@/lib/subject-configuration";
 import { activePrograms, errMsg, mapProgram, newId, pad, programChecks, programState, useStore } from "@/hooks/use-workspace";
 
 const ROLES = ["Main code", "Helper code", "Header", "Input data", "Unassigned"];
@@ -174,8 +175,17 @@ function EditorBody({ subject, program }: { subject: Subject; program: Program }
   const fixRef = useRef(fixCheck); fixRef.current = fixCheck;
   useEffect(() => { const i = takeIntent(x => x.programField?.pid === program.id); if (i?.programField) fixRef.current(i.programField.field); }, [program.id, genOpen]);
 
-  const programFields = (subject.fields ?? []).filter(f => f.scope === "program");
-  const subjectFields = (subject.fields ?? []).filter(f => f.scope === "subject");
+  // With an active template, only show what its placeholders actually use. Hidden values are never removed.
+  const tplFields = subject.template ? new Set(Object.values(mappingsForTemplate(subject.template, subject.template.mappings)).map(m => m.field)) : null;
+  if (subject.index?.enabled) subject.index.columns.forEach(c => tplFields?.add(c.field));
+  const shows = (field: string) => !tplFields || tplFields.has(field);
+  const showQuestion = shows("question");
+  const showSources = !tplFields || [...tplFields].some(f => f.startsWith("source:"));
+  const showOutput = shows("output");
+  const programFields = (subject.fields ?? []).filter(f => f.scope === "program" && shows(`custom:${f.id}`));
+  const subjectFields = (subject.fields ?? []).filter(f => f.scope === "subject" && shows(`custom:${f.id}`));
+  const manualCols = subject.index?.enabled ? subject.index.columns.filter(c => c.field === "manual") : [];
+  const showDetails = showQuestion || programFields.length > 0 || manualCols.length > 0 || subjectFields.length > 0;
   const filledFields = programFields.filter(f => program.values?.[f.id]?.trim()).length;
   const lines = current?.code ? current.code.split("\n").length : 0;
 
@@ -188,8 +198,9 @@ function EditorBody({ subject, program }: { subject: Subject; program: Program }
             <label className="num-field"><span className="kicker">No.</span>
               <input id="input-number" type="number" min={1} max={9999} value={numText} aria-invalid={!!numErr} aria-label="Program number" data-testid="input-number"
                 onChange={e => { const v = e.target.value; setNumText(v); const k = Number(v); if (/^\d+$/.test(v) && k >= 1 && k <= 9999 && !progs.some(p => p.id !== program.id && p.number === k)) patch(p => ({ ...p, number: k })); }} /></label>
-            <label className="title-field"><span className="sr-only">Program title</span>
-              <input id="input-title" type="text" maxLength={500} value={program.title} onChange={e => patch(p => ({ ...p, title: e.target.value }))} placeholder="Program title" data-testid="input-title" /></label>
+            {shows("title") ? <label className="title-field"><span className="sr-only">Program title</span>
+              <input id="input-title" type="text" maxLength={500} value={program.title} onChange={e => patch(p => ({ ...p, title: e.target.value }))} placeholder="Program title" data-testid="input-title" /></label> :
+              <span className="title-field">{program.title || `Program ${program.number}`}</span>}
             <span className={`badge ${st.tone}`} data-testid="status-program">{st.label}</span>
           </div>
           <nav className="editor-nav" aria-label="Switch program">
@@ -213,13 +224,13 @@ function EditorBody({ subject, program }: { subject: Subject; program: Program }
 
           <div className="desk-main">
             <div className={`details-bar ${detailsOpen ? "open" : ""}`}>
-              <button className="details-toggle" aria-expanded={detailsOpen} aria-controls="details-body" onClick={() => {
+              {showDetails && <button className="details-toggle" aria-expanded={detailsOpen} aria-controls="details-body" onClick={() => {
                 if (!detailsOpen) focusEl("#input-question", true);
                 else setDetailsOpen(false);
               }} data-testid="button-toggle-details">
-                <ChevronDown size={14} className="chev" /> Question{programFields.length ? " & record fields" : ""}
-                <span className="muted details-peek">{program.question ? program.question.slice(0, 70) + (program.question.length > 70 ? "…" : "") : "No question yet"}{programFields.length ? ` · ${filledFields}/${programFields.length} fields` : ""}</span>
-              </button>
+                <ChevronDown size={14} className="chev" /> {showQuestion ? `Question${programFields.length || manualCols.length ? " & record fields" : ""}` : "Record fields"}
+                <span className="muted details-peek">{showQuestion ? (program.question ? program.question.slice(0, 70) + (program.question.length > 70 ? "…" : "") : "No question yet") : ""}{programFields.length ? `${showQuestion ? " · " : ""}${filledFields}/${programFields.length} fields` : ""}</span>
+              </button>}
               <div className="check-chips" aria-label="Required content">
                 {missing.length === 0 ? <span className="chip ok"><Check size={12} /> Required content present</span> :
                   missing.map(c => (subjectLevel(c.field) || c.field.startsWith("Unknown") || c.label.startsWith("Unknown"))
@@ -229,18 +240,20 @@ function EditorBody({ subject, program }: { subject: Subject; program: Program }
                   <button className="chip-act" onClick={() => patch(p => ({ ...p, outputMayBeStale: false }))} data-testid="button-mark-current">Still current</button></span>}
               </div>
             </div>
-            {detailsOpen && <section id="details-body" className="details-body panel" aria-label="Question and record fields">
-              <label className="question-field"><span className="field-label">Question</span>
-                <textarea id="input-question" rows={3} maxLength={100000} value={program.question} onChange={e => patch(p => ({ ...p, question: e.target.value }))} placeholder="Paste the question exactly as given in your lab manual" data-testid="input-question" /></label>
+            {detailsOpen && showDetails && <section id="details-body" className="details-body panel" aria-label="Question and record fields">
+              {showQuestion && <label className="question-field"><span className="field-label">Question</span>
+                <textarea id="input-question" rows={3} maxLength={100000} value={program.question} onChange={e => patch(p => ({ ...p, question: e.target.value }))} placeholder="Paste the question exactly as given in your lab manual" data-testid="input-question" /></label>}
               {programFields.length > 0 && <div className="fv-grid">{programFields.map(f => <div key={f.id} id={`fv-${f.id}`}><FieldValue def={f} value={program.values?.[f.id]} onChange={v => patch(p => ({ ...p, values: setValue(p.values, f.id, v) }))} /></div>)}</div>}
+              {manualCols.length > 0 && <div className="fv-grid index-manual">{manualCols.map(c => <label key={c.id}><span className="field-label">Index: {c.label}</span>
+                <input type="text" maxLength={2000} value={program.indexValues?.[c.id] ?? ""} data-testid={`input-index-value-${c.id}`} onChange={e => { const v = e.target.value.slice(0, 2000); patch(p => { const iv = { ...p.indexValues }; if (v) iv[c.id] = v; else delete iv[c.id]; return { ...p, indexValues: iv }; }); }} /></label>)}</div>}
               <div className="inherited-line"><span className="kicker">From subject</span>
                 <span>Course code <b>{subject.courseCode || "Not set"}</b></span><span>Semester <b>{subject.semester}</b></span>
                 {subjectFields.map(f => <span key={f.id}>{f.label} <b>{subject.values?.[f.id]?.trim() ? (f.type === "image" ? "image set" : subject.values[f.id]!.slice(0, 40)) : "Not set"}</b></span>)}
                 <a className="inline-link" href={href(`/subject/${subject.id}`)}>Subject settings</a></div>
             </section>}
 
-            <div className="work-split">
-              <section className="pane code-pane" aria-labelledby="h-sources">
+            <div className="work-split" style={showSources && showOutput ? undefined : { gridTemplateColumns: "minmax(0,1fr)" }}>
+              {showSources && <section className="pane code-pane" aria-labelledby="h-sources">
                 <div className="pane-head">
                   <h2 id="h-sources">Code</h2>
                   <div className="src-tabs" role="tablist" aria-label="Source files">
@@ -264,14 +277,14 @@ function EditorBody({ subject, program }: { subject: Subject; program: Program }
                 {srcErr && <div className="notice red pane-notice" role="alert"><AlertTriangle size={14} /><span style={{ flex: 1 }}>{srcErr}</span><button className="icon-btn" aria-label="Dismiss" onClick={() => setSrcErr(null)}><X size={12} /></button></div>}
                 {!current ? <div className="pane-empty"><p>No code yet. Paste your program into a new file, or copy one in from your computer.</p>
                   <button className="btn primary" onClick={newBlank} data-testid="button-new-source-empty"><FilePlus size={14} /> New file and paste code</button></div>
-                  : program.sources.map(src => <SourceEditor key={src.id} s={src} hidden={src.id !== current.id} busy={busy === "replace-" + src.id} confirming={confirmRemove === src.id}
+                  : program.sources.map(src => <SourceEditor key={src.id} s={src} extraRoles={[...(subject.sourceRoles ?? []), ...[...(tplFields ?? [])].filter(f => f.startsWith("source:")).map(f => f.slice(7))]} hidden={src.id !== current.id} busy={busy === "replace-" + src.id} confirming={confirmRemove === src.id}
                     onChange={(fn, stale) => patch(p => ({ ...p, sources: p.sources.map(x => x.id === src.id ? fn(x) : x) }), stale)}
                     onReplace={() => void replaceSource(src.id)} onAskRemove={() => setConfirmRemove(src.id)} onCancelRemove={() => setConfirmRemove(null)}
                     onRemove={() => { const rest = program.sources.filter(x => x.id !== src.id); patch(p => ({ ...p, sources: p.sources.filter(x => x.id !== src.id) }), true); setActiveSrc(rest[0]?.id ?? null); setConfirmRemove(null); }} />)}
                 {current && <div className="code-footer"><span>{lines} line{lines === 1 ? "" : "s"} · {current.code.length.toLocaleString()} / 1,000,000</span><span>{program.sources.filter(s => s.include).length} of {program.sources.length} file{program.sources.length === 1 ? "" : "s"} included</span></div>}
-              </section>
+              </section>}
 
-              <section className="pane out-pane" aria-labelledby="h-outputs">
+              {showOutput && <section className="pane out-pane" aria-labelledby="h-outputs">
                 <div className="pane-head">
                   <h2 id="h-outputs">Output</h2>
                   <span className="muted" style={{ fontSize: 11 }}>{program.outputs.filter(o => o.include).length} of {program.outputs.length} included</span>
@@ -306,7 +319,8 @@ function EditorBody({ subject, program }: { subject: Subject; program: Program }
                     </div>
                   ))}
                 </div>
-              </section>
+              </section>}
+              {!showSources && !showOutput && <div className="pane-empty"><p>This template does not use code or output. Fill in the record fields above.</p></div>}
             </div>
           </div>
         </div>
@@ -317,7 +331,8 @@ function EditorBody({ subject, program }: { subject: Subject; program: Program }
   );
 }
 
-function SourceEditor({ s, hidden, busy, confirming, onChange, onReplace, onAskRemove, onCancelRemove, onRemove }: {
+function SourceEditor({ s, extraRoles, hidden, busy, confirming, onChange, onReplace, onAskRemove, onCancelRemove, onRemove }: {
+  extraRoles: string[];
   s: SourceFile; hidden: boolean; busy: boolean; confirming: boolean; onChange: (fn: (s: SourceFile) => SourceFile, stale: boolean) => void;
   onReplace: () => void; onAskRemove: () => void; onCancelRemove: () => void; onRemove: () => void;
 }) {
@@ -326,7 +341,7 @@ function SourceEditor({ s, hidden, busy, confirming, onChange, onReplace, onAskR
   const err = nameError(name);
   useEffect(() => { setDraft(`src-${s.id}`, !!err); return () => setDraft(`src-${s.id}`, false); }, [err, s.id, setDraft]);
   useEffect(() => { setName(s.name); }, [s.name]);
-  const roles = ROLES.includes(s.role) ? ROLES : [s.role, ...ROLES];
+  const roles = [...new Set([s.role, ...extraRoles, ...ROLES])];
   return (
     <div id={`source-panel-${s.id}`} role="tabpanel" aria-labelledby={`tab-${s.id}`} className="source-editor" hidden={hidden} data-testid={`source-${s.id}`}>
       <div className="source-file-top">

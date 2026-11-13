@@ -15,17 +15,8 @@ const run = (command, args, cwd = root) => {
 await fs.mkdir(path.join(root, "dist"), { recursive: true });
 run(process.execPath, [path.join(root, "scripts/build-tauri-service.mjs")]);
 await viteBuild({ configFile: path.join(root, "vite.tauri.config.ts") });
-// Generated icon, without a runtime dependency on uploaded images.
-const dib = Buffer.alloc(40 + 32 * 32 * 4 + 32 * 4);
-dib.writeUInt32LE(40); dib.writeInt32LE(32, 4); dib.writeInt32LE(64, 8);
-dib.writeUInt16LE(1, 12); dib.writeUInt16LE(32, 14);
-for (let i = 40; i < 40 + 32 * 32 * 4; i += 4) {
-  dib[i] = 70; dib[i + 1] = 95; dib[i + 2] = 37; dib[i + 3] = 255;
-}
-const header = Buffer.alloc(22);
-header.writeUInt16LE(1, 2); header.writeUInt16LE(1, 4); header[6] = 32; header[7] = 32;
-header.writeUInt16LE(1, 10); header.writeUInt16LE(32, 12); header.writeUInt32LE(dib.length, 14); header.writeUInt32LE(22, 18);
-await fs.writeFile(path.join(root, "dist/tauri-icon.ico"), Buffer.concat([header, dib]));
+// The supplied logo is a small, tracked, multi-resolution local asset.
+await fs.copyFile(path.join(root, "public/recordly-icon.ico"), path.join(root, "dist/tauri-icon.ico"));
 if (assetsOnly) process.exit(0);
 if (process.platform !== "win32" || process.arch !== "x64" || !process.versions.node.startsWith("22.")) {
   throw new Error("Package this Windows x64 application on Windows x64 with Node 22.");
@@ -91,7 +82,7 @@ await fs.cp(path.join(root, "tauri/src-tauri/target/release/bundle/nsis"), outpu
 await fs.copyFile(path.join(root, "tauri/src-tauri/target/release/college-record-maker.exe"), path.join(output, "college-record-maker.exe"));
 await fs.copyFile(path.join(root, "tauri/WINDOWS-VERIFICATION.md"), path.join(output, "WINDOWS-VERIFICATION.md"));
 await fs.writeFile(path.join(output, "build-status.json"), JSON.stringify({
-  version: "0.2.1", host: "tauri", ownerCutoverApproved: false, targetHardwarePerformanceVerified: false,
+  version: "0.3.0", host: "tauri", ownerCutoverApproved: false, targetHardwarePerformanceVerified: false,
   officeVerified: false, updateFeedConfigured: !!feed, pythonPackaging: "directory",
 }, null, 2));
 console.log("Tauri trial installer created. Complete Windows verification before replacing Electron.");

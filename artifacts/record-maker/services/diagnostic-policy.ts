@@ -26,6 +26,7 @@ const operations = new Set([
   "open-document", "source-folder", "drive-sources", "store-pointer", "store-load", "store-save", "sync-status",
   "sync-run", "sync-pause", "sync-invalidate", "documents-list", "documents-file", "documents-run", "cleanup",
   "shutdown", "health", "snapshot-summary", "workflow", "open-word", "google-token", "export-pdf",
+  "close-check", "conflict-review", "resolve-conflict", "sync-review", "sync-resolve", "export-configuration", "import-configuration", "store-save-generation",
 ]);
 export const diagnosticOperation = (value: unknown): string => typeof value === "string" && operations.has(value) ? value : "unknown";
 
@@ -43,6 +44,6 @@ export function diagnosticOutcome(value: any): Record<string, unknown> {
   }
   if (Array.isArray(value.entries)) details.entries = value.entries.length;
   if (Array.isArray(value.warnings)) details.warnings = value.warnings.length;
-  if (["disconnected", "syncing", "synced", "error", "pending", "offline"].includes(value.state)) details.state = value.state;
+  if (["disconnected", "syncing", "synced", "error", "conflict", "pending", "offline"].includes(value.state)) details.state = value.state;
   return details;
 }

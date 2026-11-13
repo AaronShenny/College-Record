@@ -10,6 +10,7 @@ const files = [
   "tauri/src-tauri/Cargo.lock", "tauri/src-tauri/src/lib.rs", "tauri/src-tauri/src/protocol.rs",
   "tauri/src-tauri/src/service.rs", "tauri/src-tauri/src/vault.rs", "tauri/src-tauri/src/summary.rs",
   "tauri/src-tauri/src/runtime_paths.rs", "tauri/src-tauri/src/saved_session.rs",
+  "tauri/src-tauri/src/close_policy.rs",
   "tauri/src-tauri/src/legacy_cache.rs", "tauri/src-tauri/src/app/mod.rs",
   "tauri/src-tauri/src/app/startup.rs", "tauri/src-tauri/src/app/adapters.rs",
   "tauri/src-tauri/src/app/updates.rs", "tauri/src-tauri/tauri.conf.json",
@@ -20,6 +21,10 @@ const files = [
   "services/download-activation.test.ts", "services/sync.test.ts", "services/google-auth.test.ts",
   "src/hooks/use-workspace.tsx", "src/lib/workflow-api.ts",
   "src/lib/contracts.ts", "src/lib/dashboard-summary.ts", "src/lib/program-checks.ts",
+  "src/lib/subject-configuration.ts", "src/components/subject-config.tsx", "src/components/index-setup.tsx",
+  "src/components/close-progress.tsx", "src/components/cloud-panel.tsx", "src/pages/editor.tsx",
+  "services/recordly.test.ts", "python/index_table.py", "python/test_recordly_index.py",
+  "public/recordly-logo.png", "public/recordly-icon.ico",
 ];
 const sourceHashes = {};
 for (const filename of files) sourceHashes[filename] = createHash("sha256").update(await fs.readFile(path.join(root, filename))).digest("hex");

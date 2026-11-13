@@ -40,6 +40,8 @@ async function dispatch(action: string, payload: Record<string, any>) {
     case "store-save-generation": return documents.prepareGeneration(payload.workspace, payload.expectedRevision);
     case "sync-status": return sync.status();
     case "sync-run": return sync.sync();
+    case "sync-review": return sync.reviewConflict();
+    case "sync-resolve": return sync.resolveConflict(z.string().uuid().parse(payload.token), z.enum(["local", "drive"]).parse(payload.choice));
     case "sync-pause": return sync.pause();
     case "sync-invalidate": sync.invalidateStatus(); return null;
     case "documents-list": return documents.list();

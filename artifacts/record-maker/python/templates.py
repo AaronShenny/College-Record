@@ -35,6 +35,8 @@ def read_template(encoded: str):
             infos = archive.infolist()
             if len(infos) > 5000 or sum(i.file_size for i in infos) > 80_000_000:
                 raise ValueError("Template expands beyond the safe size limit")
+            if any(i.filename.startswith(("/", "\\")) or "\\" in i.filename or ".." in i.filename.split("/") for i in infos):
+                raise ValueError("Template contains unsafe archive paths.")
             if any("vbaproject" in i.filename.lower() for i in infos):
                 raise ValueError("Macro-enabled templates are not supported")
             if any(i.filename.startswith("word/embeddings/") for i in infos):
@@ -122,8 +124,9 @@ def validate(subject, programs):
             value = content(subject, program, mapping["field"])
             if mapping.get("required") and (not value or (isinstance(value, str) and not value.strip())):
                 errors.append(f"Program {program['number']}: {token} requires {mapping['field']}.")
+    mapped_fields = {template["mappings"][token]["field"] for token in actual if token in template["mappings"]}
     for field in subject.get("fields", []):
-        if field["required"]:
+        if field["required"] and "custom:" + field["id"] in mapped_fields:
             for program in programs:
                 value = content(subject, program, "custom:" + field["id"])
                 if not value or (isinstance(value, str) and not value.strip()):

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AlertTriangle, Cpu, Play, Search } from "lucide-react";
 import { CloudPanel, UpdatesPanel } from "@/components/cloud-panel";
 import { Shell } from "@/components/shell";
-import { PageHead } from "@/components/kit";
+import { BrandMark, PageHead } from "@/components/kit";
 import { bridge } from "@/lib/bridge";
 import { exportDiagnostics } from "@/lib/workflow-api";
 import { pendingItemCount, type WorkerResult } from "@/lib/contracts";
@@ -98,6 +98,10 @@ export default function SettingsPage() {
 
           </div>
         </details>
+        <footer className="settings-footer" data-testid="text-settings-footer">
+          <div className="settings-footer-brand"><BrandMark /><span>An exptapano Product</span></div>
+          <p className="settings-disclaimer" data-testid="text-disclaimer">INDEPENDENTLY DEVELOPED AND OPERATED. NOT OFFICIALLY AFFLIATED WITH RAJAGIRI COLLEGE OF SOCIAL SCIENCE</p>
+        </footer>
       </div>
     </Shell>
   );

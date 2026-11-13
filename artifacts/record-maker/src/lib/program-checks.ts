@@ -9,9 +9,13 @@ export function programState(p: Program, s?: Subject): { tone: "good" | "warn" |
   return { tone: "warn", label: "Incomplete", missing };
 }
 export function requiredMappings(subject?: Subject): string[] {
-  return Object.values(subject?.template?.mappings ?? {})
+  return activeMappings(subject)
     .filter(mapping => mapping.required && mapping.field !== "skip")
     .map(mapping => mapping.field);
+}
+export function activeMappings(subject?: Subject) {
+  const template = subject?.template;
+  return template ? template.placeholders.flatMap(p => template.mappings[p] ? [template.mappings[p]!] : []) : [];
 }
 const filled = (value?: string) => !!value?.trim();
 
@@ -43,11 +47,11 @@ export function programChecks(program: Program, subject?: Subject): ProgramCheck
     } else add(field, `Unknown field: ${field}`, false);
   }
   for (const definition of subject?.fields ?? []) {
-    if (definition.required) add(`custom:${definition.id}`, definition.label,
+    if (definition.required && activeMappings(subject).some(m => m.field === `custom:${definition.id}`)) add(`custom:${definition.id}`, definition.label,
       filled((definition.scope === "subject" ? subject?.values : program.values)?.[definition.id]));
   }
   // Duplicate included roles are rejected even for optional source mappings.
-  for (const mapping of Object.values(subject?.template?.mappings ?? {})) {
+  for (const mapping of activeMappings(subject)) {
     if (!mapping.field.startsWith("source:")) continue;
     const role = mapping.field.slice(7);
     if (program.sources.filter(source => source.include && source.role === role).length > 1) {

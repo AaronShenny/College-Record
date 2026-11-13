@@ -19,7 +19,7 @@ pub struct ServiceFrame {
 
 pub fn allowed_method(method: &str) -> bool {
     matches!(method, "runtime" | "load" | "save" | "workflow" | "import-source" |
-        "paste-image" | "python-health" | "inspect" | "renderer-ready" | "diagnostic" | "shutdown")
+        "paste-image" | "python-health" | "inspect" | "renderer-ready" | "diagnostic" | "shutdown" | "close-check")
 }
 
 pub fn allowed_native(action: &str) -> bool {

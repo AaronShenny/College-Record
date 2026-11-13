@@ -5,7 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { GoogleAccount } from "./google-auth";
 import { WorkspaceStore, resolveInside } from "./store";
 import { atomicJson, readJson } from "./processing";
-import type { CloudStatus } from "../src/lib/workflow-api";
+import type { CloudStatus, ConflictReview } from "../src/lib/workflow-api";
 import { localTransaction, activateIncoming } from "./local-transaction";
 import { validateIncomingInventory } from "./download-inventory";
 
@@ -21,6 +21,8 @@ const versionedPath = (relative: string, bytes: Buffer) => {
 };
 
 export class DriveFiles {
+  private etags = new Map<string, string>();
+  hasConditionalUpdate(id: string) { return this.etags.has(id); }
   constructor(private account: DriveAccount, private abort?: AbortSignal,
     private diagnostic: (details: Record<string, unknown>) => void = () => undefined) {}
   async request(endpoint: string, init: RequestInit = {}): Promise<Response> {
@@ -44,7 +46,8 @@ export class DriveFiles {
       if ([429, 500, 502, 503, 504].includes(response.status) && attempt < 3) {
         await new Promise(resolve => setTimeout(resolve, 750 * 2 ** attempt)); continue;
       }
-      throw new Error(response.status === 401 ? "Google authorization expired; reconnect your college account." :
+      throw new Error(response.status === 412 ? "Drive changed during upload. Review or retry; no newer index was overwritten." :
+        response.status === 401 ? "Google authorization expired; reconnect your college account." :
         response.status === 403 ? "Drive denied access. Check granted scopes, college policy and storage quota." :
         `Drive request failed (${response.status}). No sync acknowledgement was recorded; retry when connected.`);
     }
@@ -62,10 +65,10 @@ export class DriveFiles {
   }
   async root() {
     const roots = await this.list(`mimeType = '${FOLDER}' and appProperties has { key='recordMaker' and value='root-v1' }`);
-    if (roots.length > 1) throw new Error("More than one College Record Maker app root was found. Resolve duplicate app folders before syncing; no data was overwritten.");
+    if (roots.length > 1) throw new Error("More than one Recordly/legacy College Record Maker app root was found. Resolve duplicate app folders before syncing; no data was overwritten.");
     if (roots[0]) return roots[0].id;
     const response = await this.request("/drive/v3/files?fields=id", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "College Record Maker", mimeType: FOLDER, appProperties: { recordMaker: "root-v1" } }) });
+      body: JSON.stringify({ name: "Recordly", mimeType: FOLDER, appProperties: { recordMaker: "root-v1" } }) });
     return (await response.json()).id as string;
   }
   async createFolder(root: string, parent: string, name: string, key: string) {
@@ -79,12 +82,15 @@ export class DriveFiles {
     const metadata = { name, ...(!existing ? { parents: [parent] } : {}), appProperties: { recordMakerRoot: root, recordMakerKey: hash(key) } };
     const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`), bytes, Buffer.from(`\r\n--${boundary}--\r\n`)]);
     const response = await this.request(`/upload/drive/v3/files${existing ? "/" + existing.id : ""}?uploadType=multipart&fields=id,name,mimeType,parents,appProperties`, {
-      method: existing ? "PATCH" : "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: new Uint8Array(body),
+      method: existing ? "PATCH" : "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}`,
+        ...(existing && this.etags.has(existing.id) ? { "If-Match": this.etags.get(existing.id)! } : {}) }, body: new Uint8Array(body),
     });
     return await response.json() as RemoteFile;
   }
   async bytes(id: string) {
     const response = await this.request(`/drive/v3/files/${encodeURIComponent(id)}?alt=media`);
+    const etag = response.headers.get("etag");
+    if (etag) this.etags.set(id, etag);
     const declared = Number(response.headers.get("content-length") || 0);
     if (declared > 270 * 1024 * 1024) throw new Error("Drive file exceeds the local size limit.");
     const chunks: Uint8Array[] = []; let length = 0;
@@ -160,6 +166,8 @@ export class DriveSync {
   private extrasCache?: { root: string; signature: string; until: number };
   private extrasScan?: { root: string; promise: Promise<string> };
   private statusEpoch = 0;
+  private conflicted = false;
+  private review?: { token: string; root: string; account: string; local: string | null; extras: string; remote: string; expires: number };
   constructor(readonly account: DriveAccount, private store: () => WorkspaceStore,
     private diagnostic: (details: Record<string, unknown>) => void = () => undefined) {}
   invalidateStatus() { this.extrasCache = undefined; this.statusEpoch++; }
@@ -185,16 +193,44 @@ export class DriveSync {
     const signature = await this.extrasSignature();
     return { connected: !!this.account.identity, configured: this.account.configured,
       account: this.account.identity ? { name: this.account.identity.name, email: this.account.identity.email } : undefined,
-      busy: this.busy, state: this.busy ? "syncing" : this.lastFailure ? "error" : state ? "synced" : "local",
+      busy: this.busy, state: this.busy ? "syncing" : this.conflicted ? "conflict" : this.lastFailure ? "error" : state ? "synced" : "local",
       pending: !!pointer && pointer.revisionId !== state?.localRevision || signature !== (state?.extraSignature || hash("")),
       lastSyncAt: state?.lastSyncAt, message: this.message, revision: pointer?.revisionId, syncedRevision: state?.localRevision };
     });
   }
   async pause() { this.controller?.abort(); await this.finished; }
-  async sync(): Promise<CloudStatus> {
+  async reviewConflict(): Promise<ConflictReview> {
+    if (this.busy || !this.account.identity) throw new Error("Wait for synchronization and connect the correct account before reviewing.");
+    const api = new DriveFiles(this.account);
+    const root = await api.root();
+    const records = await api.list(`appProperties has { key='recordMakerRoot' and value='${root}' }`);
+    const manifests = records.filter(r => r.appProperties?.recordMakerKey === hash("app.json"));
+    if (manifests.length !== 1) throw new Error("The Drive workspace does not have one valid index to review.");
+    const remote = JSON.parse((await api.bytes(manifests[0]!.id)).toString());
+    if (remote.schemaVersion !== 1 || typeof remote.revision !== "string" || !Array.isArray(remote.subjects)) throw new Error("Drive index is invalid; nothing was replaced.");
+    return localTransaction(this.store().root, async () => {
+      const pointer = await this.store().pointer();
+      const state = await this.state();
+      const signature = hash((await extras(this.store().root)).map(e => e.signature).join("\n"));
+      if (state?.remoteRevision === remote.revision) throw new Error("Drive no longer conflicts. Retry ordinary synchronization.");
+      this.review = { token: randomUUID(), root: this.store().root, account: this.account.identity!.sub,
+        local: pointer?.revisionId ?? null, extras: signature, remote: remote.revision, expires: Date.now() + 300_000 };
+      return { token: this.review.token, scope: "workspace", account: this.account.identity!.email,
+        localSavedAt: pointer?.savedAt, remoteSavedAt: remote.savedAt,
+        localSubjects: (await this.store().load()).subjects.length, remoteSubjects: remote.subjects.length };
+    });
+  }
+  async resolveConflict(token: string, choice: "local" | "drive") {
+    const review = this.review;
+    this.review = undefined; // one-use, account-bound review
+    if (!review || review.token !== token || review.expires < Date.now() || review.account !== this.account.identity?.sub ||
+        review.root !== this.store().root || !["local", "drive"].includes(choice)) throw new Error("Conflict review expired or changed. Review both copies again.");
+    return this.sync({ review, choice });
+  }
+  async sync(force?: { review: NonNullable<DriveSync["review"]>; choice: "local" | "drive" }): Promise<CloudStatus> {
     if (this.busy) throw new Error("A Drive operation is already running.");
     if (!this.account.identity) throw new Error("Connect your college Google account first.");
-    this.busy = true; this.message = "Synchronizing app workspace files…";
+    this.busy = true; this.conflicted = false; this.message = "Synchronizing app workspace files…";
     this.controller = new AbortController();
     this.finished = new Promise(resolve => { this.markFinished = resolve; });
     try {
@@ -213,6 +249,21 @@ export class DriveSync {
       const pointer = await this.store().pointer();
       const localExtras = await extras(this.store().root);
       const signature = hash(localExtras.map(e => e.signature).join("\n"));
+      if (force) {
+        const reviewed = force.review;
+        if (reviewed.remote !== remote?.revision || reviewed.local !== (pointer?.revisionId ?? null) || reviewed.extras !== signature) {
+          throw new Error("Local or Drive changed since your conflict review. Nothing was replaced; review again.");
+        }
+        if (force.choice === "local") {
+          if (!pointer) throw new Error("There is no saved local workspace to upload.");
+          await this.upload(api, lookup, root, pointer.revisionId, reviewed.remote, signature);
+        } else {
+          await this.download(api, records, root, remote, pointer?.revisionId ?? null, signature, true);
+        }
+        this.conflicted = false; this.lastFailure = false; this.message = "The confirmed workspace version is saved to Drive and this computer.";
+        this.invalidateStatus();
+        return { ...await this.status(), busy: false, state: "synced" };
+      }
       let localDirty = !!pointer && pointer.revisionId !== previous?.localRevision || signature !== (previous?.extraSignature || hash(""));
       if (pointer && remote?.localSnapshot === pointer.revisionId && remote?.revision !== previous?.remoteRevision) {
         // Recover a completed remote commit interrupted before its local ack.
@@ -243,7 +294,10 @@ export class DriveSync {
           });
           if (verifiedPartial) localDirty = false;
         }
-        if (localDirty) throw new Error("Drive changed while this computer had pending edits or uncertain files from an older failed download. V1 supports one active computer. Local files and Drive originals were preserved; nothing uncertain was discarded or silently overwritten. Resolve this before syncing.");
+        if (localDirty) {
+          this.conflicted = true;
+          throw new Error("Drive changed while this computer had pending edits or uncertain files from an older failed download. Local files and Drive originals were preserved. Review the conflict and explicitly choose which whole workspace to keep.");
+        }
         await this.download(api, records, root, remote, pointer?.revisionId || null, signature);
       } else if (!pointer && !remote) {
         const receipt = await this.store().save({ schemaVersion: 1, subjects: [] });
@@ -252,14 +306,15 @@ export class DriveSync {
         if (!pointer) await this.store().save({ schemaVersion: 1, subjects: [] });
         await this.upload(api, lookup, root, (await this.store().pointer())!.revisionId, previous?.remoteRevision || null);
       }
-      this.lastFailure = false; this.message = "Workspace files are saved to your Drive.";
+      this.conflicted = false; this.lastFailure = false; this.message = "Workspace files are saved to your Drive.";
     } catch (error) {
+      if (error instanceof Error && /Drive changed|changed since.*review|Local changed since|safe conditional update/i.test(error.message)) this.conflicted = true;
       this.lastFailure = true; this.message = error instanceof Error ? error.message : "Drive synchronization failed.";
       throw error;
     } finally { this.invalidateStatus(); this.busy = false; this.controller = undefined; this.markFinished?.(); this.markFinished = undefined; }
     return this.status();
   }
-  private async upload(api: DriveFiles, lookup: Map<string, RemoteFile>, root: string, _revision: string, expectedRemote: string | null) {
+  private async upload(api: DriveFiles, lookup: Map<string, RemoteFile>, root: string, _revision: string, expectedRemote: string | null, reviewedExtras?: string) {
     await this.store().withSnapshot(async snapshot => {
       const revision = path.basename(snapshot);
       const { bundle, signature } = await localTransaction(this.store().root, async () => {
@@ -273,6 +328,7 @@ export class DriveSync {
       const remoteRevision = randomUUID();
       bundle.app.revision = remoteRevision;
       bundle.app.localSnapshot = revision;
+      bundle.app.savedAt = new Date().toISOString();
       const folders = new Map<string, string>([["", root]]);
       const pendingFolders = new Map<string, Promise<string>>();
       const ensureFolder = async (relative: string): Promise<string> => {
@@ -300,11 +356,18 @@ export class DriveSync {
       const appRecord = lookup.get(hash("app.json"));
       const current = appRecord ? JSON.parse((await api.bytes(appRecord.id)).toString("utf8")) : null;
       if ((current?.revision || null) !== expectedRemote) throw new Error("Drive changed during upload. The new file graph was not published; pending local changes remain.");
+      if (reviewedExtras !== undefined && appRecord && !api.hasConditionalUpdate(appRecord.id)) {
+        throw new Error("Drive did not provide a safe conditional update for this conflict. Nothing was replaced; review again when the connection supports it.");
+      }
+      if (reviewedExtras !== undefined) await localTransaction(this.store().root, async () => {
+        if ((await this.store().pointer())?.revisionId !== _revision ||
+            hash((await extras(this.store().root)).map(e => e.signature).join("\n")) !== reviewedExtras) throw new Error("Local changed since conflict review. Review again; Drive was not replaced.");
+      });
       await api.upload(root, root, "app.json", "app.json", jsonBytes(bundle.app), appRecord);
       await atomicJson(path.join(this.store().root, "sync-state.json"), { localRevision: revision, remoteRevision, extraSignature: signature, lastSyncAt: new Date().toISOString() });
-    });
+    }, true, _revision);
   }
-  private async download(api: DriveFiles, records: RemoteFile[], root: string, manifest: any, expectedLocal: string | null, expectedExtras: string) {
+  private async download(api: DriveFiles, records: RemoteFile[], root: string, manifest: any, expectedLocal: string | null, expectedExtras: string, replace = false) {
     if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.subjects) || typeof manifest.revision !== "string") throw new Error("Drive workspace manifest is unsupported; cached data was preserved.");
     const stage = path.join(this.store().root, "downloads", randomUUID());
     const revision = randomUUID();
@@ -353,6 +416,8 @@ export class DriveSync {
         if (extra.ref !== versionedPath(extra.path, bytes)) throw new Error("Drive has an invalid immutable extra-file identity. Cached data was preserved.");
       }
       const store = this.store();
+      const currentIndex = records.find(r => r.appProperties?.recordMakerKey === hash("app.json"));
+      if (!currentIndex || JSON.parse((await api.bytes(currentIndex.id)).toString()).revision !== manifest.revision) throw new Error("Drive changed during download. Review or retry; local data was preserved.");
       await localTransaction(store.root, async () => {
         const unchanged = async () => {
           this.controller?.signal.throwIfAborted();
@@ -365,6 +430,7 @@ export class DriveSync {
         const incoming = path.join(stage, "incoming");
         for (const dir of ["generated", "imports"]) {
           const source = path.join(store.root, dir), target = path.join(incoming, dir);
+          if (replace) { await fs.mkdir(target, { recursive: true }); continue; }
           try { await fs.cp(source, target, { recursive: true, preserveTimestamps: true, errorOnExist: true, force: false }); }
           catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; await fs.mkdir(target, { recursive: true }); }
         }

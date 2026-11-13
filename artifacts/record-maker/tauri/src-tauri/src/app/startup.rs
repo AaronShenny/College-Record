@@ -27,7 +27,7 @@ pub fn exclude_electron() -> Result<(), String> {
 pub fn lock(directory: &Path) -> Result<fs::File, String> {
     fs::create_dir_all(directory).map_err(|_| "Could not open the application data folder.")?;
     fs::OpenOptions::new().read(true).write(true).create(true).truncate(false).share_mode(0)
-        .open(directory.join("instance.lock")).map_err(|_| "College Record Maker is already open for this Windows user.".into())
+        .open(directory.join("instance.lock")).map_err(|_| "Recordly is already open for this Windows user.".into())
 }
 
 pub fn onboard(base: &Path) -> Result<PathBuf, String> {

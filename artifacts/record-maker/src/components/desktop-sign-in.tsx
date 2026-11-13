@@ -1,3 +1,4 @@
+import { BrandMark } from "./kit";
 import { useState } from "react";
 import { AlertTriangle, FileKey, LogIn, RefreshCw } from "lucide-react";
 import { configureGoogle, connectDrive } from "@/lib/workflow-api";
@@ -19,7 +20,7 @@ export function DesktopSignIn() {
 
   return (
     <div className="crm sign-in">
-      <div className="signin-bar"><div className="brand"><span className="brand-mark">R</span><span><span className="brand-name">Record maker</span><span className="brand-sub">Rajagiri study desk</span></span></div></div>
+      <div className="signin-bar"><div className="brand"><BrandMark /><span><span className="brand-name">Recordly</span><span className="brand-sub">by extapano</span></span></div></div>
       <main className="signin-layout">
         <section className="signin-story">
           <div className="eyebrow">A quieter way to finish the record</div>

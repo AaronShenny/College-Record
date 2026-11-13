@@ -7,6 +7,7 @@ import { FieldValue, setValue } from "@/components/field-values";
 import { FieldFontControls, FieldFontOptions } from "@/components/field-font-controls";
 import type { FieldDefinition, FieldMapping, Subject, TemplateConfig } from "@/lib/contracts";
 import { inspectTemplate } from "@/lib/workflow-api";
+import { IndexSetup } from "@/components/index-setup";
 import { errMsg, mapSubject, newId, nowIso, useStore } from "@/hooks/use-workspace";
 
 const BUILT_IN: [string, string][] = [
@@ -25,15 +26,14 @@ export default function TemplatePage({ sid }: { sid: string }) {
   const [fieldOpen, setFieldOpen] = useState(false);
   const [removeTpl, setRemoveTpl] = useState(false);
   const [removeField, setRemoveField] = useState<FieldDefinition | null>(null);
-  const [extraRoles, setExtraRoles] = useState<string[]>([]);
-  const [roleText, setRoleText] = useState("");
+    const [roleText, setRoleText] = useState("");
 
   const roles = useMemo(() => {
-    const r = new Set<string>(extraRoles);
+    const r = new Set<string>(subject?.sourceRoles ?? []);
     subject?.programs.forEach(p => p.sources.forEach(s => s.role.trim() && r.add(s.role.trim())));
-    Object.values(subject?.template?.mappings ?? {}).forEach(m => m.field.startsWith("source:") && r.add(m.field.slice(7)));
+    Object.values({ ...subject?.setupMappings, ...subject?.template?.mappings }).forEach(m => m.field.startsWith("source:") && r.add(m.field.slice(7)));
     return [...r].sort();
-  }, [subject, extraRoles]);
+  }, [subject]);
 
   if (!subject || subject.trashedAt) {
     return <Shell active="subjects" crumb="Template"><div className="page"><div className="panel"><EmptyState mark="?" title="Subject not available" action={<a className="btn primary" href={href("/subjects")}>Back to subjects</a>}>Restore it from Trash or pick another subject.</EmptyState></div></div></Shell>;
@@ -42,22 +42,26 @@ export default function TemplatePage({ sid }: { sid: string }) {
   const fields = subject.fields ?? [];
   const setSubject = (fn: (s: Subject) => Subject) => update(w => mapSubject(w, sid, s => ({ ...fn(s), updatedAt: nowIso() })));
   const setTpl = (fn: (t: TemplateConfig) => TemplateConfig) => setSubject(s => s.template ? { ...s, template: fn(s.template) } : s);
-  const setMapping = (ph: string, m: FieldMapping | null) => setTpl(t => {
-    const mappings = { ...t.mappings };
+  const setMapping = (ph: string, m: FieldMapping | null) => setSubject(s => {
+    if (!s.template) return s;
+    const mappings = { ...s.template.mappings }, pending = { ...s.setupMappings };
     if (m) mappings[ph] = m; else delete mappings[ph];
-    return { ...t, mappings, reviewed: false };
+    if (m) pending[ph] = m; else delete pending[ph];
+    return { ...s, setupMappings: pending, template: { ...s.template, mappings, reviewed: false } };
   });
   const unmapped = tpl ? tpl.placeholders.filter(p => !tpl.mappings[p]) : [];
+  const pending = Object.keys(subject.setupMappings ?? {}).filter(p => !tpl || !tpl.placeholders.includes(p));
 
   const upload = async (file?: File) => {
     if (!file) return;
     setBusy(true); setError(null); setWarnings([]);
     try {
       const { template, warnings: w } = await inspectTemplate(file);
-      const prev = subject.template?.mappings ?? {};
+      const prev: Record<string, FieldMapping> = { ...subject.setupMappings, ...subject.template?.mappings };
       const carried: Record<string, FieldMapping> = {};
       for (const p of template.placeholders) if (prev[p]) carried[p] = prev[p];
-      setSubject(s => ({ ...s, template: { ...template, mappings: carried, reviewed: false } }));
+      const roles = Object.values(prev).filter(m => m.field.startsWith("source:")).map(m => m.field.slice(7));
+      setSubject(s => ({ ...s, template: { ...template, mappings: carried, reviewed: false }, sourceRoles: [...new Set([...(s.sourceRoles ?? []), ...roles])].slice(0, 50) }));
       setWarnings(w);
       notify(subject.template ? "Template replaced. Review every mapping again before generating; programs were not changed." : `Template read: ${template.placeholders.length} placeholder(s) found.`);
     } catch (e) { setError(errMsg(e)); }
@@ -122,6 +126,7 @@ export default function TemplatePage({ sid }: { sid: string }) {
               <div><b>distinct placeholders</b><small>{unmapped.length === 0 ? "All mapped or skipped" : `${unmapped.length} still unmapped`}</small></div>
             </div>
           </div>
+          {unmapped.length > 0 && <div className="notice" role="status" style={{ marginBottom: 14 }} data-testid="text-unmapped-review"><AlertTriangle size={14} /><span><b>Unmapped placeholders:</b> {unmapped.join(", ")}</span></div>}
           {!tpl.reviewed && <div className="notice blue" style={{ marginBottom: 14 }}><AlertTriangle size={14} /><span>Map every placeholder, or mark it as an explicit optional skip, then save the reviewed mapping. Changing any row returns the mapping to review.</span></div>}
 
           <div className="mapping-columns">
@@ -155,7 +160,7 @@ export default function TemplatePage({ sid }: { sid: string }) {
                 <div className="section-title"><h2>Source roles</h2></div>
                 <p className="hint" style={{ marginTop: 0 }}>Each role maps separately, e.g. Main code and Helper code.</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>{roles.length === 0 ? <span className="hint">No roles yet.</span> : roles.map(r => <span key={r} className="badge blue">{r}</span>)}</div>
-                <form style={{ display: "flex", gap: 6 }} onSubmit={e => { e.preventDefault(); const r = roleText.trim().slice(0, 80); if (r && !roles.includes(r)) setExtraRoles(x => [...x, r]); setRoleText(""); }}>
+                <form style={{ display: "flex", gap: 6 }} onSubmit={e => { e.preventDefault(); const r = roleText.trim().slice(0, 80); if (r && !roles.includes(r)) setSubject(s => ({ ...s, sourceRoles: [...(s.sourceRoles ?? []), r].slice(0, 50) })); setRoleText(""); }}>
                   <input type="text" value={roleText} onChange={e => setRoleText(e.target.value)} placeholder="Add role name" maxLength={80} data-testid="input-new-role" />
                   <button className="btn small" type="submit" data-testid="button-add-role">Add</button>
                 </form>
@@ -172,6 +177,8 @@ export default function TemplatePage({ sid }: { sid: string }) {
           </div>
         </>}
 
+        {pending.length > 0 && <div className="notice blue" role="status" style={{ marginTop: 14 }} data-testid="text-pending-mappings"><AlertTriangle size={14} /><span><b>{tpl ? "Saved mappings not found in this template" : "Mappings waiting for a template"}:</b> {pending.join(", ")}. They are kept and apply when a template with these placeholders is uploaded.</span></div>}
+        <IndexSetup subject={subject} />
         <section className="panel panel-pad" style={{ marginTop: 16 }}>
           <div className="section-title"><div><h2>Whole-record values</h2><p className="hint">Entered once here, shown read-only in every program.</p></div></div>
           {fields.filter(f => f.scope === "subject").length === 0 ? <p className="hint" style={{ margin: 0 }}>No whole-record custom fields. Subject name, semester and course code come from the subject itself.</p> :

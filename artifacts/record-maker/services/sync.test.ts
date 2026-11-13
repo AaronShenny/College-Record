@@ -84,7 +84,7 @@ function fakeDrive() {
     if (url.searchParams.get("alt") === "media") {
       const file = entries.get(url.pathname.split("/").at(-1)!);
       if (!file) throw new Error("Mock Drive missing file");
-      return new Response(new Uint8Array(file.bytes));
+      return new Response(new Uint8Array(file.bytes), { headers: { etag: file.etag || '"fixture"' } });
     }
     if (url.pathname.startsWith("/upload/")) {
       if (fail) throw new Error("Simulated network failure before manifest commit");
@@ -96,8 +96,10 @@ function fakeDrive() {
       const contentStart = bytes.indexOf("\r\n\r\n", middle) + 4;
       const contentEnd = bytes.lastIndexOf("\r\n" + boundary);
       const id = init.method === "PATCH" ? url.pathname.split("/").at(-1)! : `file-${++counter}`;
+      const expected = (init.headers as Record<string, string>)["If-Match"];
+      if (init.method === "PATCH" && expected && expected !== entries.get(id)?.etag) throw new Error("Drive changed during upload. No newer index was overwritten.");
       meta.id = id; meta.mimeType = "application/octet-stream";
-      entries.set(id, { meta, bytes: bytes.subarray(contentStart, contentEnd) });
+      entries.set(id, { meta, bytes: bytes.subarray(contentStart, contentEnd), etag: `"${randomUUID()}"` });
       uploads.push(meta.name);
       return Response.json(meta);
     }
@@ -108,6 +110,84 @@ function fakeDrive() {
   });
   return { entries, uploads, failNext: () => { fail = true; }, restore: () => handler.mock.restore() };
 }
+test("explicit conflict choice keeps Local or Drive with one-use reviewed revisions and correct inventories", async () => {
+  for (const choice of ["local", "drive"] as const) {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), "recordly-conflict-")), remote = fakeDrive();
+    try {
+      const a = new WorkspaceStore(path.join(base, "a")), b = new WorkspaceStore(path.join(base, "b"));
+      const sa = new DriveSync(account, () => a), sb = new DriveSync(account, () => b);
+      const original = data(); await a.save(original); await sa.sync(); await sb.sync();
+      const drive = structuredClone(original); drive.subjects[0].name = "Drive changed";
+      await a.save(drive); await sa.sync();
+      const local = structuredClone(original); local.subjects[0].name = "Local changed";
+      await b.save(local);
+      await fs.mkdir(path.join(b.root, "generated"), { recursive: true });
+      await fs.writeFile(path.join(b.root, "generated", "local-only.docx"), "retained unless explicitly replaced");
+      await assert.rejects(() => sb.sync(), /Drive changed/);
+      assert.equal((await sb.status()).state, "conflict");
+      const review = await sb.reviewConflict();
+      assert.equal(review.scope, "workspace"); assert.equal(review.account, account.identity!.email);
+      assert.deepEqual(await b.load(), local); // reviewing/cancelling changes nothing
+      const result = await sb.resolveConflict(review.token, choice);
+      assert.equal(result.pending, false); assert.equal(result.state, "synced");
+      await assert.rejects(() => sb.resolveConflict(review.token, choice), /review expired/i);
+      assert.deepEqual(await b.load(), choice === "drive" ? drive : local);
+      if (choice === "drive") await assert.rejects(() => fs.stat(path.join(b.root, "generated", "local-only.docx")), /ENOENT/);
+      else { await sa.sync(); assert.deepEqual(await a.load(), local); }
+    } finally { remote.restore(); await fs.rm(base, { recursive: true, force: true }); }
+  }
+});
+
+test("conflict review cannot overwrite local or remote changes made after review", async () => {
+  const base = await fs.mkdtemp(path.join(os.tmpdir(), "recordly-review-")), remote = fakeDrive();
+  try {
+    const a = new WorkspaceStore(path.join(base, "a")), b = new WorkspaceStore(path.join(base, "b"));
+    const sa = new DriveSync(account, () => a), sb = new DriveSync(account, () => b);
+    const initial = data(); await a.save(initial); await sa.sync(); await sb.sync();
+    const drive = structuredClone(initial); drive.subjects[0].name = "Drive new"; await a.save(drive); await sa.sync();
+    const local = structuredClone(initial); local.subjects[0].name = "Local new"; await b.save(local);
+    const one = await sb.reviewConflict();
+    local.subjects[0].name = "New local after review"; await b.save(local);
+    await assert.rejects(() => sb.resolveConflict(one.token, "drive"), /changed since.*review/);
+    assert.deepEqual(await b.load(), local);
+    const two = await sb.reviewConflict();
+    drive.subjects[0].name = "New Drive after review"; await a.save(drive); await sa.sync();
+    await assert.rejects(() => sb.resolveConflict(two.token, "local"), /changed since.*review/);
+    assert.deepEqual(await a.load(), drive);
+  } finally { remote.restore(); await fs.rm(base, { recursive: true, force: true }); }
+});
+
+test("conditional conflict publication rejects a competing root-index write after final review", async () => {
+  const remote = fakeDrive();
+  const originalUpload = DriveFiles.prototype.upload;
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "recordly-conditional-"));
+  const store = new WorkspaceStore(root);
+  const sync = new DriveSync(account, () => store);
+  try {
+    const workspace = data();
+    await store.save(workspace);
+    await sync.sync();
+    const local = structuredClone(workspace); local.subjects[0]!.name = "Pending local";
+    await store.save(local);
+    const app = [...remote.entries.values()].find(entry => entry.meta.name === "app.json")!;
+    const changed = JSON.parse(app.bytes.toString("utf8"));
+    changed.revision = randomUUID();
+    app.bytes = Buffer.from(JSON.stringify(changed)); app.etag = `"${randomUUID()}"`;
+    const review = await sync.reviewConflict();
+    DriveFiles.prototype.upload = async function(...args: Parameters<DriveFiles["upload"]>) {
+      if (args[2] === "app.json" && args[5]) app.etag = `"${randomUUID()}"`;
+      return originalUpload.apply(this, args);
+    };
+    await assert.rejects(sync.resolveConflict(review.token, "local"), /Drive changed during upload/);
+    assert.deepEqual(JSON.parse(app.bytes.toString("utf8")), changed);
+    assert.equal((await store.load()).subjects[0]!.name, "Pending local");
+    assert.equal((await sync.status()).pending, true);
+  } finally {
+    DriveFiles.prototype.upload = originalUpload;
+    remote.restore();
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
 test("OAuth identity requires verified email AND the college hosted-domain claim", () => {
   assert.throws(() => collegeIdentity({ sub: "x", email: "x@rajagiri.edu", email_verified: false, hd: "rajagiri.edu" } as any), /verified/);
   assert.throws(() => collegeIdentity({ sub: "x", email: "x@rajagiri.edu", email_verified: true } as any), /verified/);

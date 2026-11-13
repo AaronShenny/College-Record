@@ -12,9 +12,11 @@ const program: Program = {
 const subject: Subject = {
   id: "subject", name: "Lab", semester: 1, courseCode: "", updatedAt: "", trashedAt: null, programs: [program],
   template: { id: "template", name: "template.docx", dataBase64: "", uploadedAt: "", reviewed: true,
-    placeholders: ["[OUTPUT]", "[COURSE]"], mappings: {
+    placeholders: ["[OUTPUT]", "[COURSE]", "[FACULTY]", "[AIM]"], mappings: {
       "[OUTPUT]": { field: "output", required: true },
       "[COURSE]": { field: "courseCode", required: true },
+      "[FACULTY]": { field: "custom:faculty", required: false },
+      "[AIM]": { field: "custom:aim", required: false },
     } },
   fields: [
     { id: "faculty", label: "Faculty", type: "text", scope: "subject", required: true },
@@ -35,7 +37,7 @@ test("filled inherited and program values satisfy checks without requiring unmap
   assert.ok(!checks.some(check => check.field === "question"));
 });
 test("optional duplicate source roles still point back to source editing", () => {
-  const s = { ...subject, fields: [], template: { ...subject.template!, mappings: { "[CODE]": { field: "source:Main code", required: false } } } };
+  const s = { ...subject, fields: [], template: { ...subject.template!, placeholders: ["[CODE]"], mappings: { "[CODE]": { field: "source:Main code", required: false } } } };
   const p = { ...program, sources: ["a", "b"].map(id => ({ id, name: `${id}.c`, role: "Main code", code: "code", include: true })) };
   assert.deepEqual(programChecks(p, s), [{ field: "source:Main code", label: "Use one included source for Main code", ok: false }]);
 });

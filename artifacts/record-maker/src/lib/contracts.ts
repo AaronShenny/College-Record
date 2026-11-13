@@ -20,6 +20,17 @@ export const templateSchema = z.object({
   mappings: z.record(mappingSchema), reviewed: z.boolean(), uploadedAt: z.string().datetime(),
 }).strict();
 const values = z.record(z.string().max(12_000_000)).optional();
+export const indexColumnSchema = z.object({
+  id, label: z.string().trim().min(1).max(120),
+  field: z.string().min(1).max(120),
+}).strict();
+export const indexSchema = z.object({
+  enabled: z.boolean(), title: z.string().max(200),
+  columns: z.array(indexColumnSchema).max(12),
+}).strict().superRefine((index, ctx) => {
+  if (index.enabled && !index.columns.length) ctx.addIssue({ code: "custom", message: "Add an index column or turn the index off." });
+  if (new Set(index.columns.map(c => c.id)).size !== index.columns.length) ctx.addIssue({ code: "custom", message: "Index columns must be unique." });
+});
 export const sourceSchema = z.object({
   id, name: z.string().min(1).max(200).refine(v => !/[\\/\x00]/.test(v), "Use a filename, not a path"),
   role: z.string().max(80), code: z.string().max(1_000_000), include: z.boolean(),
@@ -34,12 +45,16 @@ export const programSchema = z.object({
   sources: z.array(sourceSchema).max(50), outputs: z.array(outputSchema).max(100),
   outputMayBeStale: z.boolean(),
   values,
+  indexValues: z.record(z.string().max(2000)).optional(),
 }).strict();
 export const subjectSchema = z.object({
   id, name: z.string().trim().min(1).max(150), semester: z.number().int().min(1).max(20),
   courseCode: z.string().max(50), updatedAt: z.string().datetime(), trashedAt: z.string().datetime().nullable(),
   programs: z.array(programSchema).max(500),
   template: templateSchema.nullable().optional(), fields: z.array(fieldSchema).max(100).optional(), values,
+  index: indexSchema.optional(),
+  setupMappings: z.record(mappingSchema).optional(),
+  sourceRoles: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
 }).strict().superRefine((subject, ctx) => {
   const numbers = subject.programs.filter(p => !p.trashedAt).map(p => p.number);
   if (new Set(numbers).size !== numbers.length) ctx.addIssue({ code: "custom", message: "Active program numbers must be unique within a subject" });
@@ -81,6 +96,7 @@ export type RuntimeInfo = {
   storageLabel: string; driveConnected: boolean; pythonAvailable: boolean | null;
   requiresSignIn?: boolean;
   savedGenerationReservations?: boolean;
+  closeSync?: boolean;
 };
 export type WorkerResult = { jobId: string; result: Record<string, unknown> };
 export interface DesktopBridge {

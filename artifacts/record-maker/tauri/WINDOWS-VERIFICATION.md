@@ -1,3 +1,18 @@
+# Recordly 0.3.0 targeted acceptance
+
+Use disposable records and copies for destructive conflict tests. This source update does not certify these Windows checks.
+
+1. Upgrade an existing Tauri 0.2.x installation: Recordly name, shortcut, supplied logo and extapano publisher appear. The original signed-in account, local unsynced data, generated files and existing Drive root remain discoverable; no second empty app folder is created. Inspect installer entries/old shortcuts because the display-name change can leave an older uninstall entry. Do not remove old caches or fallback while investigating.
+2. Edit a program and immediately press X: saving/syncing is visible; app exits only after Drive confirms all changes. Reopen on another laptop and verify edits and generated documents. Repeat with a pending generated/import publication.
+3. Disconnect networking, edit and press X: app remains open, work survives, Retry fails clearly while offline and Return to editing works. Restore networking and retry; verify successful Drive acknowledgment precedes exit. Repeat with invalid number/file-name drafts, full disk, expired authorization and interrupted transfers.
+4. Leave pending work on two caches to create a conflict. Settings review must explain the entire workspace replacement, show both sides, default to Cancel and require choice plus confirmation. Test each choice on disposable data, with generated/import inventories. Edit locally or change Drive after review; stale confirmation must not overwrite either newer side. Repeat a failed upload/download and restart.
+5. Save Now after a local-only edit and after generating a document without editing content: both reach Drive. Minimize the window and confirm the native three-minute interval still uploads changes, without overlapping manual requests or redownloading unchanged graphs.
+6. Hide Question/custom/source/output mappings: editor hides unused fields but retains values. Restore mappings and verify the exact values. Test index-only fields and imported nondefault source roles.
+7. Create/reorder/label mapped, blank and manual index columns; generate selected programs and inspect DOCX in Word. Table appears once before included programs in numeric order, with separate index headers and existing template formatting on program pages. Individual records stay unchanged; PDF uses Word and preserves the DOCX on conversion failure.
+8. Export with/without Word template. On a second student account import before subject creation and into an existing subject, each with/without a template. Review and cancel, keep current template, replace with included template, or upload later. Verify no prior program/value content is lost and no sender values/Drive IDs/credentials were shared. Reject corrupt/oversized/unsupported config and unsafe DOCX packages.
+9. Inspect exact Settings footer and independence disclaimer. Leave signed updates disabled unless the separate release-signing checks are completed. Hardware startup targets need separate cold/warm measurements; do not infer performance from these functional checks.
+10. Trigger failed boot/onboarding before the workspace mounts, then press X/Alt-F4. The native pre-workspace close route must exit without depending on a renderer listener or starting Node/Drive; existing cache files stay unchanged. Closing during an active onboarding/migration must wait for that operation to settle. Once a service/workspace has opened, the shortcut must be unavailable and normal Drive acknowledgment must still be required.
+
 # Tauri trial installer: verification and recovery
 
 This is the complete app integration, not the isolated startup test.

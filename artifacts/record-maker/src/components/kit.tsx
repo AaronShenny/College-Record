@@ -83,3 +83,8 @@ export function fmtTime(iso?: string) {
   const today = new Date().toDateString() === d.toDateString();
   return today ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : d.toLocaleDateString([], { day: "numeric", month: "short" }) + ", " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
+
+export const LOGO_SRC = `${import.meta.env.BASE_URL}recordly-logo.png`;
+export function BrandMark() {
+  return <img className="brand-logo" src={LOGO_SRC} alt="" aria-hidden="true" width={34} height={34} />;
+}

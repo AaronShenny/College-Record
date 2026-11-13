@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { bridge } from "@/lib/bridge";
-import { cloudStatus, feature, generateDocuments, type CloudStatus, type GenerationResult } from "@/lib/workflow-api";
+import { cloudStatus, feature, generateDocuments, type CloudStatus, type GenerationResult, type ConflictReview } from "@/lib/workflow-api";
 import { workspaceSchema, type Program, type RuntimeInfo, type Subject, type Workspace, type SaveReceipt } from "@/lib/contracts";
 import { mergeGenerationChoice, type GenerationChoice } from "@/lib/generation-choice";
+import { CloseProgress } from "@/components/close-progress";
 export type { GenerationChoice } from "@/lib/generation-choice";
 export { programChecks, requiredMappings } from "@/lib/program-checks";
 
@@ -18,6 +19,12 @@ type Store = {
   update: (fn: (w: Workspace) => Workspace) => void;
   save: SaveState;
   saveNow: () => void;
+  syncNow: () => Promise<void>;
+  reviewConflict: () => Promise<ConflictReview>;
+  resolveConflict: (token: string, choice: "local" | "drive") => Promise<void>;
+  closing: { state: "idle" | "saving" | "error"; message?: string };
+  retryClose: () => void;
+  cancelClose: () => void;
   runtime: RuntimeInfo | null;
   runtimeError: string | null;
   toasts: Toast[];
@@ -39,6 +46,7 @@ export type GenJob = { state: "idle" | "running" | "done" | "error"; subjectId?:
 export function cloudLabel(c: CloudStatus | null): { tone: "good" | "warn" | "alert" | "neutral"; text: string } {
   if (!c) return { tone: "neutral", text: "Checking Drive…" };
   if (!c.connected) return { tone: "neutral", text: c.configured ? "Drive not signed in" : "Drive not connected" };
+  if (c.state === "conflict") return { tone: "alert", text: "Drive conflict · review in Settings" };
   if (c.state === "error") return { tone: "alert", text: "Drive sync error" };
   if (c.state === "syncing" || c.busy) return { tone: "warn", text: "Syncing to Drive…" };
   if (c.pending) return { tone: "warn", text: "Changes waiting to sync" };
@@ -75,6 +83,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const inFlight = useRef(false);
   const flight = useRef<Promise<void> | null>(null);
   const preparingGeneration = useRef(false);
+  const replacementBusy = useRef(false);
+  const closeBusy = useRef(false);
+  const [closing, setClosing] = useState<Store["closing"]>({ state: "idle" });
   const persistedRevision = useRef<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const loading = useRef(false);
@@ -143,7 +154,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [setStatus]);
 
   const update = useCallback((fn: (w: Workspace) => Workspace) => {
-    if (!latest.current) return;
+    if (!latest.current || closeBusy.current || replacementBusy.current) return;
     const next = fn(latest.current);
     if (next === latest.current) return;
     void window.recordMakerEditState?.(true).catch(() => undefined);
@@ -155,11 +166,31 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     timer.current = window.setTimeout(() => void flush(), 900);
   }, [flush, setStatus]);
 
+  const saveLocal = useCallback(async () => {
+    if (draftsRef.current.size) throw new Error("Fix the highlighted draft fields before saving to Drive or closing.");
+    while (preparingGeneration.current) await new Promise(resolve => setTimeout(resolve, 50));
+    do {
+      await flight.current;
+      await flush();
+      if (["error", "invalid"].includes(statusRef.current)) throw new Error("The local save failed. Your edits remain open; retry saving before syncing.");
+    } while (savedRev.current !== rev.current);
+  }, [flush]);
+  const syncNow = useCallback(async () => {
+    await saveLocal();
+    if (!window.recordMaker) { notify("Saved in this browser. Drive synchronization needs the installed app."); return; }
+    try {
+      const status = await feature<CloudStatus>("sync-drive");
+      setCloud(status); setCloudError(null);
+      if (status.pending || status.state !== "synced") throw new Error(status.message || "Some changes are still waiting for Drive. Retry Save Now.");
+    } catch (e) {
+      try { setCloud(await cloudStatus()); } catch { /* Keep last known status; never imply success. */ }
+      setCloudError(errMsg(e)); throw e;
+    }
+  }, [saveLocal, notify]);
   const saveNow = useCallback(() => {
-    if (savedRev.current === rev.current && statusRef.current !== "error") { notify("Everything is already saved locally."); return; }
-    if (statusRef.current === "error") savedRev.current = Math.min(savedRev.current, rev.current - 1);
-    void flush();
-  }, [flush, notify]);
+    void syncNow().then(() => { if (window.recordMaker) notify("Saved locally and to Drive."); })
+      .catch(e => notify(errMsg(e), "error"));
+  }, [syncNow, notify]);
 
   const reload = useCallback(async () => {
     if (loading.current || inFlight.current) return;
@@ -184,6 +215,50 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       bridge.getRuntime().then(r => setRuntime(r)).catch(e => setRuntimeError(errMsg(e)));
     } finally { loading.current = false; }
   }, [setStatus]);
+  const reviewConflict = useCallback(async () => {
+    await saveLocal();
+    return feature<ConflictReview>("conflict-review");
+  }, [saveLocal]);
+  const resolveConflict = useCallback(async (token: string, choice: "local" | "drive") => {
+    await saveLocal();
+    replacementBusy.current = true;
+    try {
+      const status = await feature<CloudStatus>("resolve-conflict", { token, choice });
+      setCloud(status); setCloudError(null);
+      if (choice === "drive") await reload();
+      notify(choice === "drive" ? "Replaced this computer’s workspace with the reviewed Drive version." : "Saved the reviewed local workspace to Drive.");
+    } finally { replacementBusy.current = false; }
+  }, [saveLocal, reload, notify]);
+  const cancelClose = useCallback(() => {
+    if (closeBusy.current) return;
+    setClosing({ state: "idle" });
+    window.recordMakerCloseRequested = false;
+    void window.recordMakerCancelClose?.().catch(() => undefined);
+  }, []);
+  const retryClose = useCallback(() => {
+    if (closeBusy.current) return;
+    closeBusy.current = true;
+    setClosing({ state: "saving", message: "Saving changes and finishing document jobs, then syncing to Drive. Keep Recordly open." });
+    void (async () => {
+      try {
+        while (genRunning.current) await new Promise(resolve => setTimeout(resolve, 100));
+        if (latest.current) await saveLocal();
+        // Native host fences new requests and independently verifies Drive ack.
+        await window.recordMakerEditState?.(false);
+        if (!window.recordMakerFinishClose) throw new Error("This build does not support safe Drive-synchronized closing.");
+        await window.recordMakerFinishClose();
+      } catch (e) {
+        setClosing({ state: "error", message: `${errMsg(e)} Recordly has not closed; your local work was preserved.` });
+        void window.recordMakerCancelClose?.().catch(() => undefined);
+      } finally { closeBusy.current = false; }
+    })();
+  }, [saveLocal]);
+  useEffect(() => {
+    const onClose = () => { window.recordMakerCloseRequested = false; retryClose(); };
+    window.addEventListener("recordly-close-request", onClose);
+    if (window.recordMakerCloseRequested) { window.recordMakerCloseRequested = false; onClose(); }
+    return () => window.removeEventListener("recordly-close-request", onClose);
+  }, [retryClose]);
 
   useEffect(() => { void reload(); }, [reload]);
   const cloudRequest = useRef<Promise<CloudStatus | null> | null>(null);
@@ -310,7 +385,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  return <Ctx.Provider value={{ workspace, workspaceRevision: localRevision, loadError, reload, update, save, saveNow, runtime, runtimeError, toasts, notify, dismiss, drafts, setDraft, cloud, cloudError, refreshCloud, isClean, gen, startGeneration, docsVersion, generationChoices, setGenerationChoice }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ workspace, workspaceRevision: localRevision, loadError, reload, update, save, saveNow, syncNow, reviewConflict, resolveConflict, closing, retryClose, cancelClose, runtime, runtimeError, toasts, notify, dismiss, drafts, setDraft, cloud, cloudError, refreshCloud, isClean, gen, startGeneration, docsVersion, generationChoices, setGenerationChoice }}>{children}<CloseProgress state={closing.state} message={closing.message} retry={retryClose} cancel={cancelClose} /></Ctx.Provider>;
 }
 
 export function useStore() {

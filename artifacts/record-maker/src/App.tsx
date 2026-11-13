@@ -15,6 +15,7 @@ const TemplatePage = lazy(() => import("@/pages/template"));
 const ImportPage = lazy(() => import("@/pages/import"));
 import { workspaceAccess } from "@/lib/workspace-access";
 import { syncDrive } from "@/lib/workflow-api";
+import { CloudPanel } from "@/components/cloud-panel";
 import { errMsg } from "@/hooks/use-workspace";
 import { StartupDashboard } from "@/components/startup-dashboard";
 
@@ -71,6 +72,7 @@ function Routes() {
         <div className="notice red"><AlertTriangle size={14} />{loadError}</div>
         <p className="hint">Nothing was changed or cleared. Editing stays locked until the saved workspace loads, so an empty workspace can never overwrite it.</p>
         <button className="btn primary" onClick={reload} data-testid="button-retry-load">Try again</button>
+        {cloud?.state === "conflict" && <CloudPanel />}
       </div>
     </div>;
   }

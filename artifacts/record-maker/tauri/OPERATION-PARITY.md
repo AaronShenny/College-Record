@@ -1,3 +1,17 @@
+# Recordly 0.3.0 additions
+
+The current product name is Recordly, publisher extapano. Display/installer/icon changes preserve the stable application identifier, DPAPI/account hashing, cached-workspace paths, legacy migration candidates and Drive appProperties discovery keys. Existing Drive roots are not renamed or recreated.
+
+- Save Now now commits locally and synchronizes Drive. The shared background coordinator coalesces requests and runs every three minutes after the initial real screen paints.
+- Normal native close asks the renderer to finish valid edits and jobs, then fences new operations in the Rust host. A native-only final check independently requires a clean Drive acknowledgment before service shutdown and exit. Failures retain the window and local data with Retry/return-to-editing. Forced termination/power loss remains outside this guarantee.
+- Before any service/workspace opens, failed bootstrap cannot trap the window behind a missing renderer listener: native closing fences/drains bootstrap requests and may exit without starting Node or touching cached records. A service that started during that drain disables the shortcut and requires the normal save/Drive-close handshake. Bootstrap-error diagnostics do not start a service later.
+- Explicit conflict review is one-use, account/root-bound and expires in five minutes. Both replacement choices are whole-workspace operations, not field merges. Local/extra/remote revision changes invalidate the review; uploads publish immutable references first and conditionally update the root index. Force-Local fails closed if Drive omits conditional-update metadata. Force-Drive stages and validates exact remote inventories before journaled activation.
+- Template/index-used editor fields are dynamic; hidden values remain. Index columns are student-defined mapped text, blank or manually entered values; no page-number option is offered. The optional table appears once at the front of a combined record, in selected program-number order, with its own header/footer-free initial section.
+- Versioned JSON subject configurations exclude student work/values, credentials and Drive references. Export chooses template inclusion; import re-inspects included DOCX, remaps identities, requires replacement review and supports template-later setup. Templates may contain personal text already present in the file; export warns students.
+- New optional schema fields round-trip through existing snapshots and Drive file graphs. Older binaries may reject unfamiliar fields; retain the archived baseline but do not use it to edit upgraded workspaces.
+
+Automated and browser evidence is recorded in the task completion report. Windows installer upgrade behavior, native close/real network error recovery, actual two-laptop Drive handoff and Office pagination/PDF require installed Windows acceptance; do not label these passed from browser mocks or portable tests.
+
 # Native operation inventory
 
 All existing React pages use the same `DesktopBridge`. Tauri maps fixed commands

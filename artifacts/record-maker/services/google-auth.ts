@@ -78,7 +78,7 @@ export class GoogleAccount {
   async recoverLockedCredentials() {
     await this.sessionWrites;
     const accounts = await fs.readdir(path.join(path.dirname(this.directory), "workspaces"), { withFileTypes: true })
-      .catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return []; throw error; });
+      .catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return [] as import("node:fs").Dirent[]; throw error; });
     const keys = accounts.filter(entry => entry.isDirectory() && /^account-[a-f0-9]{32}$/.test(entry.name)).map(entry => entry.name.slice(8));
     if (keys.length) await writeAtomicJson(`${this.directory}.recovery-accounts.json`, { version: 1, keys });
     const backup = `${this.directory}.recovery-${randomBytes(12).toString("hex")}`;

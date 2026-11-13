@@ -20,3 +20,9 @@ Students decide the index table's columns. Configuration export must let them ch
 **Why:** The user answered “let the students decide” and selected “Choose when exporting”.
 
 **How to apply:** Do not hardcode a single mandatory index layout or always include/exclude template bytes. Persist reusable index choices with the subject setup.
+
+The product rebrand must not implicitly become a stored-identity migration.
+
+**Why:** Existing users already have protected Google credentials and account-separated workspaces. A display-name change must not strand those records or create a second empty Drive root.
+
+**How to apply:** Preserve compatibility identifiers and legacy discovery while updating display names and artwork. Changing storage/credential identity needs a separate explicit migration decision.
