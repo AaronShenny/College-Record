@@ -1,10 +1,11 @@
 //! Private, owned Node service. No shell, socket, renderer-chosen executable,
 //! broad process-name termination, or automatic retry of uncertain writes.
 use crate::protocol::{allowed_method, read_frame, MAX_FRAME_BYTES};
+use crate::runtime_paths::node_argument;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    io::{BufReader, Write},
+    io::{BufReader, Read, Write},
     os::windows::{io::{AsRawHandle, FromRawHandle, OwnedHandle}, process::CommandExt},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
@@ -25,6 +26,7 @@ struct Channel {
     pending: Mutex<HashMap<String, mpsc::Sender<Response>>>,
     stopped: AtomicBool,
     callbacks: AtomicUsize,
+    stderr_category: Mutex<Option<&'static str>>,
 }
 impl Channel {
     fn send(&self, value: Value) -> Result<(), String> {
@@ -35,10 +37,16 @@ impl Channel {
             .write_all(&encoded).map_err(|_| "Native service stopped. Its operations were not retried.".into())
     }
     fn fail(&self) {
+        self.fail_with("Native service stopped.");
+    }
+    fn fail_with(&self, reason: &str) {
         self.stopped.store(true, Ordering::SeqCst);
+        let category = self.stderr_category.lock().ok().and_then(|category| *category);
+        let message = format!("{reason}{} Local files were preserved; operations were not retried.",
+            category.map(|category| format!(" Node reported {category}.")).unwrap_or_default());
         if let Ok(mut pending) = self.pending.lock() {
             for (_, caller) in pending.drain() {
-                let _ = caller.send(Err("Native service stopped. Local files were preserved; operations were not retried.".into()));
+                let _ = caller.send(Err(message.clone()));
             }
         }
     }
@@ -78,10 +86,13 @@ impl NativeService {
             return Err("Windows could not configure the service lifetime boundary.".into());
         }
         let nonce = format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple());
-        let mut command = Command::new(node);
-        command.arg(&script).arg(&configuration.directory).arg(&resources)
+        // Validate using canonical paths above; normalize only the runtime
+        // boundary, never the containment checks. Node must not receive a
+        // verbatim \\?\ entry point or resource root.
+        let mut command = Command::new(node_argument(&node));
+        command.arg(node_argument(&script)).arg(node_argument(&configuration.directory)).arg(node_argument(&resources))
             .arg(&configuration.version).arg(if configuration.packaged { "true" } else { "false" })
-            .current_dir(&resources).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null())
+            .current_dir(&resources).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
             .creation_flags(0x08000000).env_clear().env("RECORD_MAKER_HOST_NONCE", &nonce);
         // No inherited NODE_OPTIONS, Electron launch variables, OAuth secrets,
         // arbitrary executables or developer paths in an installed release.
@@ -101,14 +112,38 @@ impl NativeService {
         }
         let input = child.stdin.take().ok_or("The native service input is unavailable.")?;
         let output = child.stdout.take().ok_or("The native service output is unavailable.")?;
+        let mut stderr = child.stderr.take().ok_or("The native service diagnostics are unavailable.")?;
         let channel = Arc::new(Channel {
             stdin: Mutex::new(input), pending: Mutex::new(HashMap::new()),
             stopped: AtomicBool::new(false), callbacks: AtomicUsize::new(0),
+            stderr_category: Mutex::new(None),
+        });
+        let diagnostics_channel = channel.clone();
+        thread::spawn(move || {
+            // Drain continuously without logging raw stderr, paths, credentials,
+            // source text or arbitrary exception strings. Retain only a fixed
+            // allowlisted category; memory stays bounded even without newlines.
+            let mut buffer = [0_u8; 512];
+            let mut tail = Vec::new();
+            while let Ok(count) = stderr.read(&mut buffer) {
+                if count == 0 { break; }
+                tail.extend_from_slice(&buffer[..count]);
+                for code in ["MODULE_NOT_FOUND", "ERR_MODULE_NOT_FOUND", "ERR_INVALID_ARG_VALUE", "ERR_INVALID_ARG_TYPE", "SyntaxError"] {
+                    if tail.windows(code.len()).any(|window| window == code.as_bytes()) {
+                        if let Ok(mut category) = diagnostics_channel.stderr_category.lock() { *category = Some(code); }
+                    }
+                }
+                if tail.len() > 128 { tail.drain(..tail.len() - 128); }
+            }
         });
         let read_channel = channel.clone();
         thread::spawn(move || {
             let mut reader = BufReader::new(output);
-            while let Ok(frame) = read_frame(&mut reader, MAX_FRAME_BYTES) {
+            loop {
+                let frame = match read_frame(&mut reader, MAX_FRAME_BYTES) {
+                    Ok(frame) => frame,
+                    Err(reason) => { read_channel.fail_with(&reason); return; }
+                };
                 if read_channel.stopped.load(Ordering::SeqCst) { break; }
                 if frame.kind == "result" {
                     if let Ok(mut pending) = read_channel.pending.lock() {
@@ -204,6 +239,14 @@ mod tests {
         let root = std::env::temp_dir().join(format!("record-native-owner-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
         let artifact = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
+        // Exercise canonicalized runtime entry points with spaces and Unicode,
+        // rather than relying only on GitHub's simple ASCII checkout location.
+        let resources = root.join("college resources - विद्यार्थी");
+        let bundle = resources.join("dist/tauri-host");
+        std::fs::create_dir_all(&bundle).unwrap();
+        for name in ["service-host.cjs", "background.cjs"] {
+            std::fs::copy(artifact.join("dist/tauri-host").join(name), bundle.join(name)).unwrap();
+        }
         let registration = root.join("fixture-registration.json");
         std::fs::write(&registration, json!({"installed":{"client_id":"test.apps.googleusercontent.com","client_secret":"not-a-real-secret-fixture"}}).to_string()).unwrap();
         let configuration = |node: PathBuf, resources: PathBuf| ServiceConfiguration {
@@ -215,9 +258,13 @@ mod tests {
             if action == "open-dialog" { return Ok(json!({"canceled":false,"filePaths":[registration]})); }
             Err("No other native callback is expected for this fixture.".into())
         });
-        let service = NativeService::spawn(configuration(PathBuf::from(node.clone()), artifact.clone()), native.clone()).unwrap();
+        let service = NativeService::spawn(configuration(PathBuf::from(node.clone()), resources.clone()), native.clone()).unwrap();
         let timeout = Duration::from_secs(30);
-        let workspace = service.request("load", Value::Null, timeout).unwrap();
+        let workspace = service.request("load", Value::Null, timeout).unwrap_or_else(|error| {
+            let exit = service.child.lock().unwrap().try_wait().unwrap().and_then(|status| status.code());
+            let category = *service.channel.stderr_category.lock().unwrap();
+            panic!("First workspace load failed: {error}; Node exit code: {exit:?}; safe stderr category: {category:?}");
+        });
         assert_eq!(workspace, json!({"schemaVersion":1,"subjects":[]}));
         let receipt = service.request("save", workspace.clone(), timeout).unwrap();
         assert!(receipt["revisionId"].as_str().is_some());
@@ -231,7 +278,7 @@ mod tests {
         assert_eq!(process_count(&service), 0, "No owned Node/Python descendants may remain.");
         assert!(service.request("save", workspace, timeout).is_err(), "A stopped host must not retry writes.");
         drop(service);
-        let reopened = NativeService::spawn(configuration(PathBuf::from(node), artifact), native).unwrap();
+        let reopened = NativeService::spawn(configuration(PathBuf::from(node), resources), native).unwrap();
         reopened.request("load", Value::Null, timeout).unwrap();
         reopened.request("shutdown", Value::Null, timeout).unwrap();
         drop(reopened);

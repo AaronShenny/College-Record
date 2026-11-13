@@ -9,6 +9,7 @@ const files = [
   "tauri/service-host.ts", "tauri/service-host.test.ts", "tauri/src-tauri/Cargo.toml",
   "tauri/src-tauri/Cargo.lock", "tauri/src-tauri/src/lib.rs", "tauri/src-tauri/src/protocol.rs",
   "tauri/src-tauri/src/service.rs", "tauri/src-tauri/src/vault.rs", "tauri/src-tauri/src/summary.rs",
+  "tauri/src-tauri/src/runtime_paths.rs",
   "services/host-workflows.ts", "services/native-session.ts", "services/service-protocol.ts",
   "services/store.ts", "services/drive-sync.ts", "services/google-auth.ts",
   "src/lib/contracts.ts", "src/lib/dashboard-summary.ts", "src/lib/program-checks.ts",
