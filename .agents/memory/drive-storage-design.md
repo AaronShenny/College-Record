@@ -61,11 +61,11 @@ Use a Git-like synchronization approach.
 
 **How to apply:** Discuss revision-based synchronization and conflict review as the new direction. The user has not yet specified actual Git storage, manual commits, full history, branches, automatic merging, or the exact replacement for latest-save-wins. Preserve Drive as the persistent store; do not install or initialize Git infrastructure for app data during discussion. The prior no-conflict-copy choice has not yet been explicitly reversed.
 
-Defer conflict handling to version 2.
+Conflict resolution is now requested for the current application: offer an explicit choice to force the Local version into Drive or replace Local with the Drive version.
 
-**Why:** The user explicitly stated “We will handle conflicts later in 2nd version.”
+**Why:** The user reopened the earlier version-two deferral after encountering conflicts while switching laptops, requesting “force overwrite [matching with either local or drive]”.
 
-**How to apply:** Keep conflict-resolution UI, merging, and the Git-like conflict-handling design out of version 1. Do not continue requesting decisions about those deferred details unless the user reopens them. Ordinary Drive saving and offline work remain requirements. Do not silently promise safe concurrent multi-device editing or invent a replacement overwrite policy.
+**How to apply:** Plan explicit, confirmed Local-versus-Drive recovery rather than silently overwriting either side. Clearly explain the replacement scope and loss of losing-side changes; preserve immutable-file-before-index publication, account isolation and atomic local activation. Automatic merging and simultaneous multi-device editing are not authorized by this request.
 
 Version 1 assumes one active computer per student at a time. Switching computers is supported after finishing sync and closing the app on the first computer. Offline editing on multiple computers at once is outside the supported workflow.
 
@@ -73,8 +73,14 @@ Version 1 assumes one active computer per student at a time. Switching computers
 
 **How to apply:** Use this as a supported-usage boundary, not a claim of an implemented cross-device lock or a guarantee that conflicts are impossible. Do not build device locking or promise concurrent editing without separate agreement.
 
-Still unresolved: PDF and older-template retention and automatic Trash expiry. Exact Git-like conflict behavior, history, and deletion-versus-edit resolution are deferred to version 2.
+Save Now must save locally and sync to Drive; background Drive sync should run every three minutes; normal app closing must finish uploading changes before exit.
 
-**Why:** These items were expressly left open in the accepted proposal; approving the structure did not resolve them.
+**Why:** The user requested these behaviors after finding that closing the first laptop left pending changes and caused conflicts on the second.
 
-**How to apply:** Discuss them separately. Storage-design approval does not authorize creating folders in Drive or beginning application development.
+**How to apply:** Local persistence remains first. A failed/offline upload cannot count as Drive-saved; explain that normal close must remain blocked with retry and local data retained. This is a requested behavior, not proof it is implemented, and cannot guarantee uploads after forced termination or power loss.
+
+Still unresolved: PDF and older-template retention and automatic Trash expiry. Conflict history and automatic merging remain unapproved.
+
+**Why:** The new overwrite request does not settle those independent retention policies.
+
+**How to apply:** Do not add retention or merging policies by inference.
